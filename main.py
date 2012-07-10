@@ -4,8 +4,9 @@ import sys
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
-from frmMain import frmMain
+from frmMDI import frmMDI
 from frmChannel import frmChannel
+from frmMain import frmMain
 
 def Main():
     if __name__ == '__main__':
@@ -15,10 +16,17 @@ def Main():
         app.setApplicationName( 'Sortes' )
 
         # create widget
-        w = frmMain()
+        #w = frmMain()
         #w = frmChannel()
-        w.show()
-
+        
+        m = frmMDI()
+        w = frmMain()
+        
+        w.setMdiParent( m.ui.mdiArea )
+        w.showMaximized()
+        
+        m.show()
+        
         # connection
         QObject.connect( app, SIGNAL( 'lastWindowClosed()' ), app, SLOT( 'quit()' ) )
 

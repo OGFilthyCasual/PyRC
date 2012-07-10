@@ -16,10 +16,13 @@ class frmMain( QMainWindow ):
     """frmMain inherits QMainWindow"""
 
     ui = None
-    ircsocket = None
+    IRCSocket = None
 
     frmChannelArray = []
     frmPrivateArray = []
+
+    #the window we wish to reside inside of
+    mdiParent = None
 
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
@@ -27,16 +30,16 @@ class frmMain( QMainWindow ):
         self.ui = Ui_frmMain()
         self.ui.setupUi( self )
         
-        self.ircsocket = IRCSocketThread()
+        self.IRCSocket = IRCSocketThread()
         
         #when connecting a signal, omit any brackets ()
-        self.ircsocket.PacketEmitter.connect( self.processPacket )
+        self.IRCSocket.PacketEmitter.connect( self.processPacket )
         
         #tell the irc socket to connect to a server
-        self.ircsocket.connect( ('irc.freenode.net', 6667) )
+        self.IRCSocket.connect( ('irc.freenode.net', 6667) )
         
         #start the socket's loop/thread
-        self.ircsocket.start()
+        self.IRCSocket.start()
         
         filter = txtInputFilter( self.ui.txtInput )
         filter.registerListener( self )
@@ -46,6 +49,16 @@ class frmMain( QMainWindow ):
 
     def __del__ ( self ):
         self.ui = None
+        
+
+    #we might get stuffed in an MDI window.
+    def setMdiParent( self, obj ):
+        self.mdiParent = obj
+        self.mdiParent.addSubWindow( self )
+        
+
+    def getMdiParent( self ):
+        return self.mdiParent
         
 
     def closeChannelWindow( self, chn ):
@@ -93,12 +106,14 @@ class frmMain( QMainWindow ):
     def createChannelWindow( self, chn ):
         x = frmChannel()
         
-        x.setFormMain( self ) 
+        x.setIRCSocket( self.IRCSocket ) 
         
         x.setChannel( chn )
         x.setWindowTitle( chn )
         
         x.onCloseEvent.connect( self.closeChannelWindow )
+        
+        x.setMdiParent( self.getMdiParent() )
         
         x.show()
         
@@ -126,7 +141,7 @@ class frmMain( QMainWindow ):
         
 
     def send( self, data ):
-        self.ircsocket.send( data + '\r\n' )
+        self.IRCSocket.send( data + '\r\n' )
         return
         
 
@@ -134,12 +149,24 @@ class frmMain( QMainWindow ):
         
         QApplication.flush()
         
-        self.ShowMessageAsText( repr(data) )
+        #self.ShowMessageAsText( repr(data) )
+        
+        nick = self.IRCSocket.extractNick( data['p'] )
+        
+        self.ShowMessageAsText( '[%s(%s)] %s' % (data['c'], nick, data['m']) )
         
         if (data['c'] == '000'):
             pass
+            
+        elif (data['c'] == '002'): #this lines tells use a ton of shit, I should decode it.
+            self.setWindowTitle( data['p'] )
+            pass
+
         #elif (data['c'] == '004'):
-        #elif (data['c'] == '005'): #this lines tells use a ton of shit, I should decode it.
+        
+        elif (data['c'] == '005'): #this lines tells use a ton of shit, I should decode it.
+            pass
+
         #elif (data['c'] == '200'): #RPL_TRACELINK           "Link <version & debug level> <destination> <next server>"
         #elif (data['c'] == '201'): #RPL_TRACECONNECTING     "Try. <class> <server>"
         #elif (data['c'] == '202'): #RPL_TRACEHANDSHAKE      "H.S. <class> <server>"
@@ -292,10 +319,11 @@ class frmMain( QMainWindow ):
         #elif (data['c'] == 'QUIT'):    #
         #elif (data['c'] == 'MODE'):    #
         #elif (data['c'] == 'TOPIC'):   #
+        
         elif (data['c'] == 'PRIVMSG'): #
         
             #who joined the channel
-            who = self.ircsocket.extractNick( data['p'] )
+            who = self.IRCSocket.extractNick( data['p'] )
             
             #argument 0 is the channel name
             chn = data['a'][0]
@@ -314,10 +342,10 @@ class frmMain( QMainWindow ):
         
         elif (data['c'] == 'JOIN'):    #
             #what is our nickname
-            me = self.ircsocket.getNick()
+            me = self.IRCSocket.getNick()
             
             #who joined the channel
-            who = self.ircsocket.extractNick( data['p'] )
+            who = self.IRCSocket.extractNick( data['p'] )
             
             #argument 0 is the channel name
             chn = data['a'][0]
@@ -328,17 +356,17 @@ class frmMain( QMainWindow ):
                 self.createChannelWindow( chn )
             else:
                 if(objChan):
-                    objChan.ShowMessageAsHTML( '<font color=green><b>[  +  ]</b> %s joined %s.</font>' % (chn, who) )
+                    objChan.ShowMessageAsHTML( '<font color=green><b>[  +  ]</b> %s joined %s.</font>' % (who, chn) )
                     objChan.addName( who )
                 
             
         
         elif (data['c'] == 'PART'):    #
             #what is our nickname
-            me = self.ircsocket.getNick()
+            me = self.IRCSocket.getNick()
             
             #who joined the channel
-            who = self.ircsocket.extractNick( data['p'] )
+            who = self.IRCSocket.extractNick( data['p'] )
             
             #argument 0 is the channel name
             chn = data['a'][0]
@@ -350,7 +378,8 @@ class frmMain( QMainWindow ):
                     objChan.ShowMessageAsText( '\n*** You parted the channel ***\n' )
                     
             else:
-                objChan.ShowMessageAsHTML( '<font color=red><b>[  -  ] %s parted %s.</font>' % (chn, who) )
+                objChan.ShowMessageAsHTML( '<font color=red><b>[  -  ] %s parted %s.</font>' % (who, chn) )
+                objChan.removeName( who )
             
                 
         else:
@@ -366,7 +395,7 @@ class frmMain( QMainWindow ):
         if ( isinstance( txt, QString ) ):
             txt = str(txt.toUtf8())
         
-        self.ircsocket.send( txt + '\r\n' )
+        self.IRCSocket.send( txt + '\r\n' )
         self.ShowMessageAsHTML( '<br><b>&#60;sent&#62; ' + txt + '</b><br>'  )
         
         return 

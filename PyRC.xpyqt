@@ -21,6 +21,7 @@
         <file>frmMain.ui</file>
         <file>frmChannel.ui</file>
         <file>frmPrivate.ui</file>
+        <file>frmMDI.ui</file>
     </variable>
     <variable name="PYTHON_FILES">
         <file>main.py</file>
@@ -29,5 +30,6 @@
         <file>modInputFilter.py</file>
         <file>modIRCSocketThread.py</file>
         <file>frmPrivate.py</file>
+        <file>frmMDI.py</file>
     </variable>
 </project>

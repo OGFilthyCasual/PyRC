@@ -25,7 +25,8 @@ class frmChannel ( QMainWindow ):
     names = {}
     
     #mmhmmmm.
-    frmMain = None
+    IRCSocket = None
+    mdiParent = None
     
     #tell the object listening to onCloseEmitter which Channel we are
     onCloseEvent = pyqtSignal( str )
@@ -44,6 +45,20 @@ class frmChannel ( QMainWindow ):
     def __del__ ( self ):
         self.ui = None
         
+
+    #we might get stuffed in an MDI window.
+    def setMdiParent( self, obj ):
+        self.mdiParent = obj
+        self.mdiParent.addSubWindow( self )
+        
+
+    def getMdiParent( self ):
+        return self.mdiParent
+        
+
+    def setIRCSocket( self, socket ):
+        self.IRCSocket = socket
+        pass
 
     def ShowMessageAsHTML( self, txt ):
         sb = self.ui.txtOutput.verticalScrollBar()
@@ -79,8 +94,15 @@ class frmChannel ( QMainWindow ):
         
 
     def removeName( self, name ):
-        pass
+        #this is the prefixed name of the user.
+        nick = self.names[name] + name
         
+        #this is a very dirty line, but it works.
+        self.ui.listNames.takeItem( self.ui.listNames.row( self.ui.listNames.findItems(nick, Qt.MatchExactly)[0] ) )
+        
+        del self.names[name]
+        
+        return
 
     #add names to the channel
     def addNames( self, nnames = {} ):
@@ -112,17 +134,13 @@ class frmChannel ( QMainWindow ):
         self.channel = chn
         
 
-    def setFormMain( self, frm ):
-        self.frmMain = frm
-        pass 
-
     def processInput( self, caller, txt ):
         #this function is required by tge txtInputFilter class so that
         #this object will recieve input from the event filter.
         
-        if(self.frmMain):
-            self.frmMain.send('PRIVMSG %s :%s' % (self.channel, txt))
-            self.ShowMessageAsHTML('&#60;<b><font color=blue>%s</font></b>&#62; %s' % (self.frmMain.ircsocket.getNick(), txt))
+        if(self.IRCSocket):
+            self.IRCSocket.send('PRIVMSG %s :%s\r\n' % (self.channel, txt))
+            self.ShowMessageAsHTML('&#60;<b><font color=blue>%s</font></b>&#62; %s' % (self.IRCSocket.getNick(), txt))
             
         return
         

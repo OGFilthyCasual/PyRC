@@ -2,6 +2,9 @@
 <ui version="4.0">
  <class>frmMain</class>
  <widget class="QMainWindow" name="frmMain">
+  <property name="windowModality">
+   <enum>Qt::NonModal</enum>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,7 +14,10 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>frmMain</string>
+   <string>Server</string>
+  </property>
+  <property name="documentMode">
+   <bool>false</bool>
   </property>
   <property name="dockOptions">
    <set>QMainWindow::AllowTabbedDocks</set>
@@ -49,6 +55,15 @@
         </property>
         <property name="frameShape">
          <enum>QFrame::Panel</enum>
+        </property>
+        <property name="verticalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOff</enum>
+        </property>
+        <property name="horizontalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOff</enum>
+        </property>
+        <property name="lineWrapMode">
+         <enum>QPlainTextEdit::NoWrap</enum>
         </property>
        </widget>
       </item>

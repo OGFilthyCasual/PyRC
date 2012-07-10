@@ -61,13 +61,22 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
             
 
     def extractNick( self, prefix ):
-        return prefix.split('!')[0]
+        if ('!' in prefix):
+            return prefix.split('!')[0]
+        else:
+            return prefix
 
     def extractUser( self, prefix ):
-        return prefix.split('@')[0].split('!')[1] #ahahah
+        if (('!' in prefix) and ('@' in prefix)):
+            return prefix.split('@')[0].split('!')[1] #ahahah
+        else:
+            return prefix
 
     def extractHost( self, prefix ):
-        return prefix.split('@')[1]
+        if ('@' in prefix):
+            return prefix.split('@')[1]
+        else:
+            return prefix
 
 
     def parseMessage(self, msg):
@@ -139,7 +148,7 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
 
 
     def handle_connect( self ):
-        print 'Connected!  Ohh Yeah!\n\n'
+        print 'Connected.'
         
         self.send( 'PASS none\n' )
         self.send( 'NICK %s\n' % self.nick )
