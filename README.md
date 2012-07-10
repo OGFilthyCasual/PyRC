@@ -10,4 +10,4 @@ I started developing in Python 2012-06-07.  This project was created 2012-06-29,
 
 This project was created in and is best viewed with Monkey Studio.  Get a copy from http://monkeystudio.org/
 
-![](screenshot/pyrc.png "Screentshot")
+[![](https://github.com/MichaelTheDevel/PyRC/blob/master/screenshot/pyrc.png)]
