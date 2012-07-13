@@ -65,10 +65,10 @@ class txtInputFilter( QObject ):
                     #clear the plain edit box
                     obj.setPlainText('')
                     
-                    print self.listHistoryPos
+                    print(self.listHistoryPos)
                     
                 else:
-                    print 'txtInputFilter::objListener is undefined or does not support processInput()'
+                    print('txtInputFilter::objListener is undefined or does not support processInput()')
                 
                 return True
                 
@@ -106,7 +106,7 @@ class txtInputFilter( QObject ):
             #we should only set objListener if it contains the processInput function
             self.objListener = obj
         else:
-            print 'txtInputFilter::registerListener object does not support processInput()'
+            print('txtInputFilter::registerListener object does not support processInput()')
         
         return
         

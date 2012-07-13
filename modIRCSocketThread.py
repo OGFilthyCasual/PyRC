@@ -8,16 +8,18 @@ http://creativecommons.org/licenses/by-nc-sa/3.0/
 
 #A threaded socket which parses IRC messages in to managable
 #dictionary packets for consumption
-
+import sys
 import asyncore, socket
 
 from PyQt4.QtCore import QThread, QObject, pyqtSignal
 
-class IRCSocketThread(asyncore.dispatcher, QThread):
+class IRCSocketThread(asyncore.dispatcher_with_send, QThread):
     nick = None
     user = None
     passwd = 'none'
-    buffer = ''
+    
+    buffer = b''
+    out_buffer = b''
     
     #connect a function to this signal that you wish to recive lines from the IRC server
     PacketEmitter = pyqtSignal( dict )
@@ -28,14 +30,19 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
         self.passwd = ''
 
         QThread.__init__( self, parent )
-        asyncore.dispatcher.__init__( self, parent )
+        asyncore.dispatcher_with_send.__init__( self, parent )
         
         self.create_socket( socket.AF_INET, socket.SOCK_STREAM )
         self.setblocking(1)
 
     def __del__( self ):
         self = None
-        
+            
+
+    
+    def send( self, data ):
+        #automatically endcode (meaning convert from utf-8) a byte array
+        super(asyncore.dispatcher_with_send, self).send( data.encode('utf-8') )
 
     def getNick( self ):
         return self.nick 
@@ -83,6 +90,9 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
 
 
     def parseMessage(self, msg):
+
+        #print('parsemessage')
+        #print(repr(msg))
 
         #PREFIX (optional)     COMMAND      ARGS          MESSAGE
         #:[server | hostmask]  [str | int]  {[str] ... }  :[str]
@@ -151,12 +161,13 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
 
 
     def handle_connect( self ):
-        print 'Connected.'
+        #print('connected')
         
-        self.send( 'PASS none\n' )
-        self.send( 'NICK %s\n' % self.nick )
-        self.send( 'USER %s - - %s\n' % (self.user, ':Python-2.7.3') )
-        self.send( 'USERHOST %s\n' % self.user )
+        self.send( 'PASS none\r\n')
+        self.send( 'NICK %s\r\n' % self.nick)
+        self.send( 'USER %s - - %s\r\n' % (self.user, ':Python-2.7.3'))
+        self.send( 'USERHOST %s\r\n' % self.user)
+        
 
     def handle_close( self ):
         self.close()
@@ -164,15 +175,18 @@ class IRCSocketThread(asyncore.dispatcher, QThread):
 
     def handle_read( self ):
 
-        rbuffer = ''
+        #print('read')
+        
+        rbuffer = b''
 
         while (1):
             c = self.recv(1)
-            if (c == '\n'):
-                self.PacketEmitter.emit( self.parseMessage( rbuffer ) )
-                rbuffer = ''
+            if (c == b'\n'):
+                self.PacketEmitter.emit( self.parseMessage( rbuffer.decode('utf-8') ) )
+                rbuffer = b''
             else:
                 rbuffer = rbuffer + c
+                
             
 
     def writable( self ):

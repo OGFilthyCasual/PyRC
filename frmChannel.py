@@ -120,7 +120,7 @@ class frmChannel ( QMainWindow ):
         #merge names with the existing
         self.names.update( nnames )
         
-        for n in nnames.keys():
+        for n in list(nnames.keys()):
             #add the data first because it will contain a mode character if any
             self.ui.listNames.addItem( self.names[n] + n )
             

@@ -70,10 +70,6 @@ class frmMain( QMainWindow ):
 
     def closeChannelWindow( self, chn ):
         
-        #if we're working with a QString, convert it.
-        if (isinstance( chn, QString )):
-            chn = str( chn.toUtf8() )
-        
         objChan = self.frmChannelArray[ self.getChannelWindowIndex( chn ) ]
         
         if (objChan):
@@ -97,12 +93,6 @@ class frmMain( QMainWindow ):
 
     def getChannelWindow( self, chn ):
         #return the frmChannel object that matches the chn string
-        
-        #if we're working with a QString, convert it.
-        if (isinstance( chn, QString )):
-            chn = str( chn.toUtf8() )
-            
-        
         #return [c for c in self.frmChannelArray if(c.getChannel().lower() == chn.lower())]
         try:
             return self.frmChannelArray[ self.getChannelWindowIndex( chn ) ]
@@ -111,20 +101,20 @@ class frmMain( QMainWindow ):
         
 
     def createChannelWindow( self, chn ):
-        x = frmChannel()
+        c = frmChannel()
         
-        x.setIRCSocket( self.IRCSocket ) 
+        c.setIRCSocket( self.IRCSocket ) 
         
-        x.setChannel( chn )
-        x.setWindowTitle( chn )
+        c.setChannel( chn )
+        c.setWindowTitle( chn )
         
-        x.onCloseEvent.connect( self.closeChannelWindow )
+        c.onCloseEvent.connect( self.closeChannelWindow )
         
-        x.setMdiParent( self.getMdiParent() )
+        c.setMdiParent( self.getMdiParent() )
+
+        self.frmChannelArray.append( c )
         
-        x.show()
-        
-        self.frmChannelArray.append( x )
+        c.show()
         
         return
         
@@ -332,7 +322,7 @@ class frmMain( QMainWindow ):
             #who joined the channel
             who = self.IRCSocket.extractNick( data['p'] )
             
-            #argument 0 is the channel name
+            #argument 0 is the channel name, or nickname
             chn = data['a'][0]
             objChan = self.getChannelWindow( chn )
             
@@ -354,7 +344,7 @@ class frmMain( QMainWindow ):
             #who joined the channel
             who = self.IRCSocket.extractNick( data['p'] )
             
-            #argument 0 is the channel name
+            #argument 0 is the channel
             chn = data['a'][0]
             objChan = self.getChannelWindow( chn )
             
@@ -399,8 +389,6 @@ class frmMain( QMainWindow ):
         #this object will recieve input from the event filter.
         
         #if we're working with a QString convert it
-        if ( isinstance( txt, QString ) ):
-            txt = str(txt.toUtf8())
         
         self.IRCSocket.send( txt + '\r\n' )
         self.ShowMessageAsHTML( '<br><b>&#60;sent&#62; ' + txt + '</b><br>'  )
