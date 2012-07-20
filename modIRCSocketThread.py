@@ -38,6 +38,7 @@ class IRCSocketThread(asyncore.dispatcher_with_send, QThread):
     def __del__( self ):
         self = None
             
+        
 
     
     def send( self, data ):
@@ -182,7 +183,7 @@ class IRCSocketThread(asyncore.dispatcher_with_send, QThread):
         while (1):
             c = self.recv(1)
             if (c == b'\n'):
-                self.PacketEmitter.emit( self.parseMessage( rbuffer.decode('utf-8') ) )
+                self.PacketEmitter.emit( self.parseMessage( rbuffer.decode('utf-8', 'ignore') ) )
                 rbuffer = b''
             else:
                 rbuffer = rbuffer + c

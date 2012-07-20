@@ -36,7 +36,7 @@ class frmChannel ( QMainWindow ):
     IRCSocket = None
     mdiParent = None
     
-    #tell the object listening to onCloseEmitter which Channel we are
+    #tell the object listening to onCloseEvent which Channel we are
     onCloseEvent = pyqtSignal( str )
     
     def __init__ ( self, parent = None ):
@@ -49,7 +49,10 @@ class frmChannel ( QMainWindow ):
         
         self.ui.txtInput.installEventFilter( f )
         
-
+        #inserts a table and sets the expectations for column sizes
+        self.ui.txtOutput.textCursor().insertHtml('<table width="100%" border="0">')
+        
+    
     def __del__ ( self ):
         self.ui = None
         
@@ -85,6 +88,30 @@ class frmChannel ( QMainWindow ):
         
         sb.setValue( sb.maximum() )
         
+    def ShowMessageInTable( self, colOne, colTwo ):
+        #I'm sure not this is frowned upon,
+        #Once I know a better way I'll update it.
+        
+        x = '''
+            <tr>
+                <td align="right" style="background-color:#EEEEEE;width:0px">
+                    $colOne
+                </td>
+            
+                <td style="background-color:#FFFFFF;width:1200px">
+                    $colTwo
+                </td>
+            </tr>
+        '''
+        
+        sb = self.ui.txtOutput.verticalScrollBar()
+        
+        self.ui.txtOutput.moveCursor(QTextCursor.End)
+        self.ui.txtOutput.textCursor().insertHtml( x.replace('$colOne', colOne).replace('$colTwo', colTwo))
+        
+        sb.setValue( sb.maximum() )
+        
+    
     def closeEvent(self, event):
         #when we close, notify other objects (probably frmMain)
         #when this signal is emitted, its converted from string to QString on
@@ -103,13 +130,14 @@ class frmChannel ( QMainWindow ):
 
     def removeName( self, name ):
         #this is the prefixed name of the user.
-        nick = self.names[name] + name
+        if (name in list(self.names)):
+            nick = self.names[name] + name
         
-        #this is a very dirty line, but it works.
-        self.ui.listNames.takeItem( self.ui.listNames.row( self.ui.listNames.findItems(nick, Qt.MatchExactly)[0] ) )
+            #this is a very dirty line, but it works.
+            self.ui.listNames.takeItem( self.ui.listNames.row( self.ui.listNames.findItems(nick, Qt.MatchExactly)[0] ) )
         
-        del self.names[name]
-        
+            del self.names[name]
+            
         return
 
     #add names to the channel
@@ -143,12 +171,15 @@ class frmChannel ( QMainWindow ):
         
 
     def processInput( self, caller, txt ):
-        #this function is required by tge txtInputFilter class so that
+        #this function is required by the txtInputFilter class so that
         #this object will recieve input from the event filter.
         
         if(self.IRCSocket):
             self.IRCSocket.send('PRIVMSG %s :%s\r\n' % (self.channel, txt))
-            self.ShowMessageAsHTML('&#60;<b><font color=blue>%s</font></b>&#62; %s' % (self.IRCSocket.getNick(), txt))
+            
+            #self.ShowMessageAsHTML('&#60;<b><font color=blue>%s</font></b>&#62; %s' % (self.IRCSocket.getNick(), txt))
+            
+            self.ShowMessageInTable(('&#60;<font color=blue>%s</font>&#62;' % self.IRCSocket.getNick()), txt)
             
         return
         

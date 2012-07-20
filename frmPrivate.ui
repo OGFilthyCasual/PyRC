@@ -15,18 +15,33 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
+    <property name="margin">
+     <number>0</number>
+    </property>
+    <property name="spacing">
+     <number>0</number>
+    </property>
     <item row="0" column="0">
      <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="spacing">
+       <number>3</number>
+      </property>
       <item>
        <widget class="QTextBrowser" name="txtOutput">
         <property name="font">
          <font>
-          <family>Inconsolata</family>
+          <family>Anonymous Pro</family>
           <pointsize>11</pointsize>
          </font>
         </property>
         <property name="frameShape">
-         <enum>QFrame::Panel</enum>
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="verticalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOn</enum>
+        </property>
+        <property name="horizontalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOff</enum>
         </property>
        </widget>
       </item>
@@ -40,12 +55,21 @@
         </property>
         <property name="font">
          <font>
-          <family>Inconsolata</family>
+          <family>Anonymous Pro</family>
           <pointsize>11</pointsize>
          </font>
         </property>
         <property name="frameShape">
-         <enum>QFrame::Panel</enum>
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="verticalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOff</enum>
+        </property>
+        <property name="horizontalScrollBarPolicy">
+         <enum>Qt::ScrollBarAlwaysOff</enum>
+        </property>
+        <property name="lineWrapMode">
+         <enum>QPlainTextEdit::NoWrap</enum>
         </property>
        </widget>
       </item>

@@ -7,6 +7,7 @@ http://creativecommons.org/licenses/by-nc-sa/3.0/
 """
 
 import asyncore, socket
+import pprint
 
 from PyQt4 import uic
 from PyQt4.QtCore import *
@@ -43,7 +44,10 @@ class frmMain( QMainWindow ):
         self.IRCSocket.PacketEmitter.connect( self.processPacket )
         
         #tell the irc socket to connect to a server
-        self.IRCSocket.connect( ('irc.freenode.net', 6667) )
+        #self.IRCSocket.connect( ('irc.freenode.net', 6667) )
+        
+        #this server has issues
+        self.IRCSocket.connect( ('lindbohm.freenode.net', 6667) )
         
         #start the socket's loop/thread
         self.IRCSocket.start()
@@ -121,9 +125,9 @@ class frmMain( QMainWindow ):
     
     def ShowMessageAsHTML( self, txt ):
         sb = self.ui.txtOutput.verticalScrollBar()
-        
-        self.ui.txtOutput.moveCursor(QTextCursor.End)
-        self.ui.txtOutput.textCursor().insertHtml( txt + '<br>')
+
+        self.ui.txtOutput.moveCursor( QTextCursor.End )
+        self.ui.txtOutput.textCursor().insertHtml( '<br>' + txt )
         
         sb.setValue( sb.maximum() )
         
@@ -132,7 +136,7 @@ class frmMain( QMainWindow ):
         sb = self.ui.txtOutput.verticalScrollBar()
 
         self.ui.txtOutput.moveCursor( QTextCursor.End )
-        self.ui.txtOutput.textCursor().insertText( txt + '\n' )
+        self.ui.txtOutput.textCursor().insertText( '\n' + txt )
         
         sb.setValue( sb.maximum() )
         
@@ -142,26 +146,36 @@ class frmMain( QMainWindow ):
         return
         
 
+    def sanitizeHtml( self, html ):
+        #because we will be using an HTML based display component;
+        #it is necessary to replace control characters <> with HTML escape codes.
+        
+        html = html.replace('<', '&#60;')
+        html = html.replace('>', '&#62;')
+        return html
+        
+
     def processPacket( self, data ):
         
         QApplication.flush()
         
-        #self.ShowMessageAsText( repr(data) )
+        #remove any HTML from the data we display
+        data['m'] = self.sanitizeHtml( data['m'] )
         
-        nick = self.IRCSocket.extractNick( data['p'] )
-        
-        self.ShowMessageAsText( '[%s(%s)] %s' % (data['c'], nick, data['m']) )
-        
-        if (data['c'] == '000'):
+        if (data['c'] == '000'):   #unknown
             pass
             
-        elif (data['c'] == '002'): #this lines tells use a ton of shit, I should decode it.
+        elif (data['c'] == '002'): #tells which server we're on.
             self.setWindowTitle( data['p'] )
             pass
 
-        #elif (data['c'] == '004'):
-        
-        elif (data['c'] == '005'): #this lines tells use a ton of shit, I should decode it.
+        elif (data['c'] == '004'): #unknown
+            pass
+        elif (data['c'] == '005'):
+            #these lines tell us all about server settings,
+            #including supported modes, channels, and encoding.
+            who = self.IRCSocket.extractNick( data['p'] )
+            self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, repr( data['a'] ) ) )
             pass
 
         #elif (data['c'] == '200'): #RPL_TRACELINK           "Link <version & debug level> <destination> <next server>"
@@ -236,10 +250,9 @@ class frmMain( QMainWindow ):
             bleh = {}
             
             #compile names in to dict's,
-            #where the keys are names, and data are modes
-            
             for name in nameList:
                 if((name[0] == '@') or (name[0] == '+')):
+                    #keys are names, modes are data
                     bleh[name[1:]] = name[0]
                 else:
                     bleh[name] = ''
@@ -313,27 +326,66 @@ class frmMain( QMainWindow ):
         #elif (data['c'] == '501'): #ERR_UMODEUNKNOWNFLAG    ":Unknown MODE flag"
         #elif (data['c'] == '502'): #ERR_USERSDONTMATCH      ":Cant change mode for other users" 
         #elif (data['c'] == '512'): #                        ":Authorization required to use this nickname"
-        #elif (data['c'] == 'QUIT'):    #
+        
         #elif (data['c'] == 'MODE'):    #
         #elif (data['c'] == 'TOPIC'):   #
         
-        elif (data['c'] == 'PRIVMSG'): #
+        elif (data['c'] == 'NICK'):   #
+            #[NICK(pythonTestClient)] AWESOME
+            
+            me = self.IRCSocket.getNick()
+            
+            who = self.IRCSocket.extractNick( data['p'] )
+            
+            newnick = data['m']
+            
+            if (who.lower() == me.lower()):
+                x = 0
+                
+                self.IRCSocket.setNick( newnick )
+
+                while (x < len(self.frmChannelArray)):
+                    self.frmChannelArray[x].removeName( who )
+                    self.frmChannelArray[x].addName( newnick )
+                    x = (x + 1)
+
+        
+        elif (data['c'] == 'QUIT'):     #
+        
+            who = self.IRCSocket.extractNick( data['p'] )
+            
+            #when someone quits the server, remove their name
+            #all open channels.
+            
+            x = 0
+            while (x < len(self.frmChannelArray)):
+                self.frmChannelArray[x].removeName( who )
+                x = (x + 1)
+
+
+        elif (data['c'] == 'PRIVMSG'):  #
         
             #who joined the channel
+            #no defined at the top of the fucntion
             who = self.IRCSocket.extractNick( data['p'] )
             
             #argument 0 is the channel name, or nickname
-            chn = data['a'][0]
-            objChan = self.getChannelWindow( chn )
             
-            #the user joined a room, and we should create a window for italic
+            whoto = data['a'][0]
+            
+            objChan = self.getChannelWindow( whoto )
+            
+            
             if(objChan):
-                objChan.ShowMessageAsHTML( '&#60;<b><font color=purple>%s</font></b>&#62; %s' % (who, data['m']))
-                
+                #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
+                objChan.ShowMessageInTable( ('&#60;<font color=purple>%s</font>&#62;' % (who)), data['m'])
+            else:
+                #this would be the private message handler for direct messages
+                self.ShowMessageAsHTML('[ --> ] &#60;<font color=green>%s</font>&#62; %s' % ( who, data['m'] ))
             
         
         elif (data['c'] == 'PING'):    #
-            self.ShowMessageAsText( '*** PONG (' + data['a'][0] + ')\n' )
+            self.ShowMessageAsHTML( '\n*** PONG (' + data['a'][0] + ')\n' )
             self.send('PONG :' + data['a'][0] )
             
         
@@ -353,7 +405,8 @@ class frmMain( QMainWindow ):
                 self.createChannelWindow( chn )
             else:
                 if(objChan):
-                    objChan.ShowMessageAsHTML( '<font color=green><b>[  +  ]</b> %s joined %s.</font>' % (who, chn) )
+                    #objChan.ShowMessageAsHTML( '<font color=green>[  +  ] %s joined %s.</font>' % (who, chn) )
+                    objChan.ShowMessageInTable( '<font color=green>+++ </font>', ('%s joined %s.' % (who, chn)) )
                     objChan.addName( who )
                 
             
@@ -372,16 +425,18 @@ class frmMain( QMainWindow ):
             if(me.lower() == who.lower()):
                 #the user joined a room, and we should create a window for italic
                 if(objChan):
-                    objChan.ShowMessageAsText( '\n*** You parted the channel ***\n' )
+                    objChan.ShowMessageAsHTML( '\n*** You parted the channel ***\n' )
                     
             else:
-                objChan.ShowMessageAsHTML( '<font color=red><b>[  -  ] %s parted %s.</font>' % (who, chn) )
+                #objChan.ShowMessageAsHTML( '<font color=red>[  -  ] %s parted %s.</font>' % (who, chn) )
+                objChan.ShowMessageInTable( '<font color=red>--- </font>', ('%s parted %s.' % (who, chn)) )
                 objChan.removeName( who )
-            
                 
+            
         else:
+            who = self.IRCSocket.extractNick( data['p'] )
+            self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, data['m']) )
             pass
-            #self.ShowMessageAsText( repr(data) )
         
 
     def processInput( self, caller, txt ):
