@@ -65,7 +65,7 @@ class txtInputFilter( QObject ):
                     #clear the plain edit box
                     obj.setPlainText('')
                     
-                    print(self.listHistoryPos)
+                    #print(self.listHistoryPos)
                     
                 else:
                     print('txtInputFilter::objListener is undefined or does not support processInput()')

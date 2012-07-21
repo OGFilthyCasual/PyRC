@@ -6,7 +6,7 @@ PyRC by Michael Allen C. Isaac is licensed under a Creative Commons Attribution-
 http://creativecommons.org/licenses/by-nc-sa/3.0/
 """
 
-from PyQt4 import uic
+from PyQt4 import uic #QtCore, QtGui
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
@@ -39,6 +39,10 @@ class frmChannel ( QMainWindow ):
     #tell the object listening to onCloseEvent which Channel we are
     onCloseEvent = pyqtSignal( str )
     
+    #a word space should be the same size as a printable characterAt
+    #in a fixed width font (i hope)
+    fontInfo = None
+    
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
         self.ui = Ui_frmChannel()
@@ -50,8 +54,11 @@ class frmChannel ( QMainWindow ):
         self.ui.txtInput.installEventFilter( f )
         
         #inserts a table and sets the expectations for column sizes
-        self.ui.txtOutput.textCursor().insertHtml('<table width="100%" border="0">')
+        self.ui.txtOutput.textCursor().insertHtml('<table width="99%" border="0">')
         
+        self.fontInfo = QFontInfo( self.ui.txtOutput.textCursor().charFormat().font() )
+        
+
     
     def __del__ ( self ):
         self.ui = None
@@ -71,43 +78,56 @@ class frmChannel ( QMainWindow ):
         self.IRCSocket = socket
         pass
 
+    def sanitizeHtml( self, html ):
+        #because we will be using an HTML based display component;
+        #it is necessary to replace control characters <> with HTML escape codes.
+        
+        html = html.replace('<', '&#60;')
+        html = html.replace('>', '&#62;')
+        
+        return html
+        
     def ShowMessageAsHTML( self, txt ):
         sb = self.ui.txtOutput.verticalScrollBar()
         
         self.ui.txtOutput.moveCursor(QTextCursor.End)
-        self.ui.txtOutput.textCursor().insertHtml( txt + '<br>')
+        self.ui.txtOutput.textCursor().insertHtml( '<br>' + txt )
         
         sb.setValue( sb.maximum() )
         
     
     def ShowMessageAsText( self, txt ):
         sb = self.ui.txtOutput.verticalScrollBar()
-
+        
         self.ui.txtOutput.moveCursor( QTextCursor.End )
-        self.ui.txtOutput.textCursor().insertText( txt + '\n' )
+        self.ui.txtOutput.textCursor().insertText( '\n' + txt )
         
         sb.setValue( sb.maximum() )
         
+
     def ShowMessageInTable( self, colOne, colTwo ):
         #I'm sure not this is frowned upon,
         #Once I know a better way I'll update it.
         
-        x = '''
+        pxSize = self.fontInfo.pixelSize()
+        
+        t = '''
             <tr>
-                <td align="right" style="background-color:#EEEEEE;width:0px">
+                <td align="right" style="background-color:#EEEEEE;width:150px;float:left;">
                     $colOne
                 </td>
-            
-                <td style="background-color:#FFFFFF;width:1200px">
+                <td align="left" style="background-color:#FFFFFF;width:0px;float:left;">
                     $colTwo
                 </td>
             </tr>
-        '''
+            ''' #% str(pxSize * 18)
+        
+        #print(x)
         
         sb = self.ui.txtOutput.verticalScrollBar()
         
         self.ui.txtOutput.moveCursor(QTextCursor.End)
-        self.ui.txtOutput.textCursor().insertHtml( x.replace('$colOne', colOne).replace('$colTwo', colTwo))
+        self.ui.txtOutput.textCursor().insertHtml( t.replace('$colOne', colOne).replace('$colTwo', colTwo))
         
         sb.setValue( sb.maximum() )
         
@@ -132,10 +152,13 @@ class frmChannel ( QMainWindow ):
         #this is the prefixed name of the user.
         if (name in list(self.names)):
             nick = self.names[name] + name
-        
+            
             #this is a very dirty line, but it works.
-            self.ui.listNames.takeItem( self.ui.listNames.row( self.ui.listNames.findItems(nick, Qt.MatchExactly)[0] ) )
-        
+            try:
+                self.ui.listNames.takeItem( self.ui.listNames.row( self.ui.listNames.findItems(nick, Qt.MatchExactly)[0] ) )
+            finally:
+                pass
+            
             del self.names[name]
             
         return
@@ -173,13 +196,16 @@ class frmChannel ( QMainWindow ):
     def processInput( self, caller, txt ):
         #this function is required by the txtInputFilter class so that
         #this object will recieve input from the event filter.
-        
-        if(self.IRCSocket):
-            self.IRCSocket.send('PRIVMSG %s :%s\r\n' % (self.channel, txt))
-            
-            #self.ShowMessageAsHTML('&#60;<b><font color=blue>%s</font></b>&#62; %s' % (self.IRCSocket.getNick(), txt))
-            
-            self.ShowMessageInTable(('&#60;<font color=blue>%s</font>&#62;' % self.IRCSocket.getNick()), txt)
+
+        txt = self.sanitizeHtml( txt )
+
+        if (self.IRCSocket):
+            if(txt[0] == '/'):
+                self.IRCSocket.send( txt[1:] + '\r\n' )
+                self.ShowMessageInTable( '<b>&#60;&#60;&#60; sent &#62; ', txt[1:] )
+            else:
+                self.IRCSocket.send('PRIVMSG %s :%s\r\n' % (self.channel, txt))
+                self.ShowMessageInTable(('&#60;<font color=blue>%s</font>&#62;' % self.IRCSocket.getNick()), txt)
             
         return
         

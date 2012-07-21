@@ -13,7 +13,6 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from frmMDI import frmMDI
-from frmChannel import frmChannel
 from frmMain import frmMain
 
 def Main():
@@ -21,8 +20,10 @@ def Main():
 
         # create application
         app = QApplication( sys.argv )
-        app.setApplicationName( 'Sortes' )
+        app.setApplicationName( 'PyRC' )
 
+        app.setStyle( QStyleFactory.create('plastique') )
+        
         # create widget
         #w = frmMain()
         #w = frmChannel()
@@ -34,7 +35,7 @@ def Main():
         w.showMaximized()
         
         m.show()
-        
+
         # connection
         QObject.connect( app, SIGNAL( 'lastWindowClosed()' ), app, SLOT( 'quit()' ) )
 

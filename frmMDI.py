@@ -7,6 +7,8 @@ http://creativecommons.org/licenses/by-nc-sa/3.0/
 """
 
 from PyQt4 import uic
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 
 ( Ui_frmMDI, QMainWindow ) = uic.loadUiType( 'frmMDI.ui' )
 
@@ -17,6 +19,8 @@ class frmMDI ( QMainWindow ):
         QMainWindow.__init__( self, parent )
         self.ui = Ui_frmMDI()
         self.ui.setupUi( self )
+        
+        #self.setWindowFlags( Qt.FramelessWindowHint )
 
     def __del__ ( self ):
         self.ui = None

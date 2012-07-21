@@ -17,6 +17,7 @@ from modInputFilter import txtInputFilter
 from modIRCSocketThread import IRCSocketThread
 
 from frmChannel import frmChannel
+from frmPrivate import frmPrivate
 
 ( Ui_frmMain, QMainWindow ) = uic.loadUiType( 'frmMain.ui' )
 
@@ -27,7 +28,11 @@ class frmMain( QMainWindow ):
     IRCSocket = None
 
     frmChannelArray = []
-    frmPrivateArray = []
+    
+    #frmPrivate message will handle all private messages
+    #from this server on a per user basis.
+    
+    privateMessageMgr = None
 
     #the window we wish to reside inside of
     mdiParent = None
@@ -37,25 +42,20 @@ class frmMain( QMainWindow ):
         
         self.ui = Ui_frmMain()
         self.ui.setupUi( self )
+
+        filter = txtInputFilter( self.ui.txtInput )
+        
+        filter.registerListener( self )
+        self.ui.txtInput.installEventFilter( filter )        
         
         self.IRCSocket = IRCSocketThread()
-        
-        #when connecting a signal, omit any brackets ()
         self.IRCSocket.PacketEmitter.connect( self.processPacket )
-        
-        #tell the irc socket to connect to a server
-        #self.IRCSocket.connect( ('irc.freenode.net', 6667) )
-        
-        #this server has issues
-        self.IRCSocket.connect( ('lindbohm.freenode.net', 6667) )
+        self.IRCSocket.connect( ('irc.freenode.net', 6667) )
         
         #start the socket's loop/thread
         self.IRCSocket.start()
         
-        filter = txtInputFilter( self.ui.txtInput )
-        filter.registerListener( self )
-        
-        self.ui.txtInput.installEventFilter( filter )
+        self.privateMessageMgr = frmPrivate()
         
 
     def __del__ ( self ):
@@ -161,7 +161,10 @@ class frmMain( QMainWindow ):
         
         #remove any HTML from the data we display
         data['m'] = self.sanitizeHtml( data['m'] )
-        
+
+        #debugging
+        print(pprint.PrettyPrinter(indent = 4).pformat( data ))
+
         if (data['c'] == '000'):   #unknown
             pass
             
@@ -446,7 +449,7 @@ class frmMain( QMainWindow ):
         #if we're working with a QString convert it
         
         self.IRCSocket.send( txt + '\r\n' )
-        self.ShowMessageAsHTML( '<br><b>&#60;sent&#62; ' + txt + '</b><br>'  )
+        self.ShowMessageAsHTML( '<b>&#60;sent&#62; ' + txt + '</b>'  )
         
         return 
         
