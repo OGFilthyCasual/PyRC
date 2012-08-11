@@ -22,7 +22,7 @@ def Main():
         app = QApplication( sys.argv )
         app.setApplicationName( 'PyRC' )
 
-        app.setStyle( QStyleFactory.create('plastique') )
+        #app.setStyle( QStyleFactory.create('plastique') )
         
         # create widget
         #w = frmMain()

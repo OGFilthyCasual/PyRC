@@ -35,13 +35,13 @@ class frmChannel ( QMainWindow ):
     #mmhmmmm.
     IRCSocket = None
     mdiParent = None
-    
-    #tell the object listening to onCloseEvent which Channel we are
-    onCloseEvent = pyqtSignal( str )
-    
+
     #a word space should be the same size as a printable characterAt
     #in a fixed width font (i hope)
     fontInfo = None
+
+    #tell the object listening to onCloseEvent which Channel we are
+    onCloseEvent = pyqtSignal( str )
     
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
@@ -54,7 +54,7 @@ class frmChannel ( QMainWindow ):
         self.ui.txtInput.installEventFilter( f )
         
         #inserts a table and sets the expectations for column sizes
-        self.ui.txtOutput.textCursor().insertHtml('<table width="99%" border="0">')
+        self.ui.txtOutput.textCursor().insertHtml('<table width="99%" border="0" cellpadding="2">')
         
         self.fontInfo = QFontInfo( self.ui.txtOutput.textCursor().charFormat().font() )
         
@@ -113,7 +113,7 @@ class frmChannel ( QMainWindow ):
         
         t = '''
             <tr>
-                <td align="right" style="background-color:#EEEEEE;width:150px;float:left;">
+                <td align="right" style="background-color:#EEEEEE;width:0px;float:left;">
                     $colOne
                 </td>
                 <td align="left" style="background-color:#FFFFFF;width:0px;float:left;">
@@ -193,6 +193,9 @@ class frmChannel ( QMainWindow ):
         self.channel = chn
         
 
+    def padThis( self, what):
+        return what.rjust(16, ' ').replace(' ', '&nbsp;')
+
     def processInput( self, caller, txt ):
         #this function is required by the txtInputFilter class so that
         #this object will recieve input from the event filter.
@@ -202,10 +205,10 @@ class frmChannel ( QMainWindow ):
         if (self.IRCSocket):
             if(txt[0] == '/'):
                 self.IRCSocket.send( txt[1:] + '\r\n' )
-                self.ShowMessageInTable( '<b>&#60;&#60;&#60; sent &#62; ', txt[1:] )
+                self.ShowMessageInTable( '%s' % (self.padThis('[command]')), txt[1:] )
             else:
                 self.IRCSocket.send('PRIVMSG %s :%s\r\n' % (self.channel, txt))
-                self.ShowMessageInTable(('&#60;<font color=blue>%s</font>&#62;' % self.IRCSocket.getNick()), txt)
+                self.ShowMessageInTable(('<font color=blue>%s</font>' % self.padThis(self.IRCSocket.getNick())), txt)
             
         return
         

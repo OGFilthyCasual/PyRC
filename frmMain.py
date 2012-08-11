@@ -381,7 +381,7 @@ class frmMain( QMainWindow ):
             
             if(objChan):
                 #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
-                objChan.ShowMessageInTable( ('&#60;<font color=purple>%s</font>&#62;' % (who)), data['m'])
+                objChan.ShowMessageInTable( ('<font color=purple>%s</font>' % self.padThis(who)), data['m'])
             else:
                 #this would be the private message handler for direct messages
                 self.ShowMessageAsHTML('[ --> ] &#60;<font color=green>%s</font>&#62; %s' % ( who, data['m'] ))
@@ -408,8 +408,7 @@ class frmMain( QMainWindow ):
                 self.createChannelWindow( chn )
             else:
                 if(objChan):
-                    #objChan.ShowMessageAsHTML( '<font color=green>[  +  ] %s joined %s.</font>' % (who, chn) )
-                    objChan.ShowMessageInTable( '<font color=green>+++ </font>', ('%s joined %s.' % (who, chn)) )
+                    objChan.ShowMessageInTable( ('<font color=green>%s</font>' % self.padThis('[+]')), ('%s joined %s.' % (who, chn)) )
                     objChan.addName( who )
                 
             
@@ -431,8 +430,7 @@ class frmMain( QMainWindow ):
                     objChan.ShowMessageAsHTML( '\n*** You parted the channel ***\n' )
                     
             else:
-                #objChan.ShowMessageAsHTML( '<font color=red>[  -  ] %s parted %s.</font>' % (who, chn) )
-                objChan.ShowMessageInTable( '<font color=red>--- </font>', ('%s parted %s.' % (who, chn)) )
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[-]')), ('%s parted %s.' % (who, chn)) )
                 objChan.removeName( who )
                 
             
@@ -440,6 +438,10 @@ class frmMain( QMainWindow ):
             who = self.IRCSocket.extractNick( data['p'] )
             self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, data['m']) )
             pass
+        
+
+    def padThis( self, what):
+        return what.rjust(16, ' ').replace(' ', '&nbsp;')
         
 
     def processInput( self, caller, txt ):

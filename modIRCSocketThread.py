@@ -37,9 +37,7 @@ class IRCSocketThread(asyncore.dispatcher_with_send, QThread):
 
     def __del__( self ):
         self = None
-            
-        
-
+    
     
     def send( self, data ):
         #automatically endcode (meaning convert from utf-8) a byte array
