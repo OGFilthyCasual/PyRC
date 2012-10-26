@@ -1,8 +1,7 @@
-PyRC
-An IRC client written in Python and Qt.
+##PyRC
+An IRC client written in Python and Qt
 
-PyRC by Michael Allen C. Isaac is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
-http://creativecommons.org/licenses/by-nc-sa/3.0/
+
 
 This is a pet project, primarily so that I can teach myself Python.
 
@@ -10,4 +9,9 @@ I started developing in Python 2012-06-07.  This project was created 2012-06-29,
 
 This project was created in and is best viewed with Monkey Studio.  Get a copy from http://monkeystudio.org/
 
-!(https://github.com/MichaelTheDevel/PyRC/blob/master/screenshot/pyrc.png)
+![](https://github.com/MichaelTheDevel/PyRC/blob/master/screenshot/pyrc-screenshot.png)
+
+
+PyRC by Michael Allen C. Isaac is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+http://creativecommons.org/licenses/by-nc-sa/3.0/
+
