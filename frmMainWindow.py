@@ -6,172 +6,217 @@ PyRC by Michael Allen C. Isaac is licensed under a Creative Commons Attribution-
 http://creativecommons.org/licenses/by-nc-sa/3.0/
 """
 
-import asyncore, socket
+import sys
 import pprint
 
 from PyQt4 import uic
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
-from modInputFilter import txtInputFilter
+( Ui_frmMainWindow, QMainWindow ) = uic.loadUiType( 'frmMainWindow.ui' )
+
+from modInputFilter import InputFilter
 from modIRCSocketThread import IRCSocketThread
 
-from frmChannel import frmChannel
-from frmPrivate import frmPrivate
+def joinIter(i, c):
+    return c.join(i)
 
-( Ui_frmMain, QMainWindow ) = uic.loadUiType( 'frmMain.ui' )
+class objChannel( object ):
 
-class frmMain( QMainWindow ):
-    """frmMain inherits QMainWindow"""
+    def __init__ ( self, parent = None ):
+        #string containing the name of the IRC Channel
+        self.channel = None
 
-    ui = None
-    IRCSocket = None
+        #buffer
+        self.message_buffer = ''
 
-    frmChannelArray = []
-    
-    #frmPrivate message will handle all private messages
-    #from this server on a per user basis.
-    
-    privateMessageMgr = None
+        #topic of the channel
+        self.topic = ''
 
-    #the window we wish to reside inside of
-    mdiParent = None
+        #names on the channel, we use a dict for name/mode data, where the nicknames are keys, and the data is user modes (@+)
+        self.names = {}
+
+        return
+
+    def addName( self, name ):
+        self.names[name] = ''
+        pass
+
+
+    def removeName( self, name ):
+        #this is the prefixed name of the user.
+        if (name in list(self.names)):
+            del self.names[name]
+        return
+
+
+    def addNames( self, nnames = {} ):
+        #merge names with the existing
+        self.names.update( nnames )
+        return
+
+
+    def getNames( self ):
+        return self.names
+
+
+    def getDestinationID( self ):
+        return self.channel
+
+
+    def getChannel( self ):
+        return self.channel
+
+
+    def setChannel( self, chn ):
+        self.channel = chn
+
+
+    def ShowMessageAsHTML( self, txt ):
+        self.message_buffer += '<br />' + txt
+
+
+    def ShowMessageAsText( self, txt ):
+        self.message_buffer += '\n' + txt
+
+
+    def ShowMessageInTable( self, colOne, colTwo ):
+        #I'd rather use div tags here, but the QTextBrower component is broken, it wont handle width: or float: styles
+        t = '''
+            <table>
+            <tr>
+                <td align="right" style="width:0px;float:left;">
+                    $colOne
+                </td>
+                <td align="left" style="width:0px;float:left;">
+                    $colTwo
+                </td>
+            </tr>
+            </table>
+            ''' #% str(pxSize * 18)
+
+        self.message_buffer += ( t.replace('$colOne', colOne).replace('$colTwo', colTwo))
+
+
+    def getMessageBuffer(self):
+        return self.message_buffer
+
+
+class frmMainWindow ( QMainWindow ):
+    """frmMainWindow inherits QMainWindow"""
 
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
-        
-        self.ui = Ui_frmMain()
+
+        #array of channel objects
+        self.objChannelArray = []
+
+        #array of private message users
+        self.objPrivateArray = []
+
+        #array of buffer IDs, Server(), Users, #Channels, etc. Dict which points to objects with a .getMessageBuffer() function
+        self.dictDestination = {}
+
+        # string that identifies our object
+        self.destinationID = ''
+        self.message_buffer = ''
+
+        self.destinationID = 'Server'
+
+        self.ui = Ui_frmMainWindow()
         self.ui.setupUi( self )
 
-        filter = txtInputFilter( self.ui.txtInput )
-        
-        filter.registerListener( self )
-        self.ui.txtInput.installEventFilter( filter )        
-        
+        self.ffilter = InputFilter( self.ui.txtInput )
+        self.ffilter.registerListener( self )
+
+        self.ui.txtInput.installEventFilter( self.ffilter )
+
+        self.fontInfo = QFontInfo( self.ui.txtOutput.textCursor().charFormat().font() )
+
+        self.ui.listDestination.itemClicked.connect(self.listDestination_OnClick)
+
+        self.AddDestinationObject( self )
+
         self.IRCSocket = IRCSocketThread()
         self.IRCSocket.PacketEmitter.connect( self.processPacket )
         self.IRCSocket.connect( ('irc.freenode.net', 6667) )
-        
+
         #start the socket's loop/thread
         self.IRCSocket.start()
-        
-        self.privateMessageMgr = frmPrivate()
-        
 
-    def __del__ ( self ):
-        self.ui = None
-        
+        #Select the first destination
+        self.ui.listDestination.setCurrentRow(0)
 
-    #we might get stuffed in an MDI window.
-    def setMdiParent( self, obj ):
-        self.mdiParent = obj
-        self.mdiParent.addSubWindow( self )
-        
+        pass
 
-    def getMdiParent( self ):
-        return self.mdiParent
-        
 
-    def closeChannelWindow( self, chn ):
-        
-        objChan = self.frmChannelArray[ self.getChannelWindowIndex( chn ) ]
-        
-        if (objChan):
-            #we also should part the channel when its closed.
-            self.send('PART ' + chn + ' :I click\'d the red X.')
-            
-            #delete it from the array of window objects
-            del self.frmChannelArray[ self.getChannelWindowIndex( chn ) ]
-        
-        return
+    def getDestinationID(self):
+        return self.destinationID
 
-    def getChannelWindowIndex( self, chn ):
-        #return the index of a channel within frmChannelArray
-        x = 0
-        while (x < len(self.frmChannelArray)):
-            if(self.frmChannelArray[x].getChannel().lower() == chn.lower()):
-                return x
-            else:
-                x = (x + 1)
-            
 
-    def getChannelWindow( self, chn ):
-        #return the frmChannel object that matches the chn string
-        #return [c for c in self.frmChannelArray if(c.getChannel().lower() == chn.lower())]
+    def listDestination_OnClick( self, data ):
+        self.UpdateMainDisplay()
+
+        dID = self.GetWorkingDestinationObject().getDestinationID()
+
+        if( dID[0] == '#' ):
+            self.UpdateNames( self.getChannelObject( dID ) )
+        else:
+            self.ui.listNames.clear()
+
+
+    def UpdateNames( self, objChan ):
+        self.ui.listNames.clear()
+
+        #objChan = self.getChannelObject( chn )
+
+        if( objChan ):
+            namez = objChan.getNames()
+
+            for n in list(namez.keys()):
+                #add the data first because it will contain a mode character if any
+                self.ui.listNames.addItem( n )
+
+
+    def AddDestinationObject( self, obj ):
+        #add a buffer object by id, used to update the left panel
+        if(hasattr( obj, 'getDestinationID' )):
+
+            #we need to make sure it has the right functions
+            self.dictDestination[ obj.getDestinationID() ] = obj
+            self.ui.listDestination.addItem( obj.getDestinationID() )
+        else:
+            print('ERROR -- AddDestinationObject object passed does not contain getID()')
+            sys.exit(0)
+
+
+    def GetDestinationObject(self, dID ):
+        #return the object if there is one, otherwise return none.
+        return self.dictDestination[ dID ]
+
+
+    def RemoveDestinationObject(self, dID ):
         try:
-            return self.frmChannelArray[ self.getChannelWindowIndex( chn ) ]
-        except:
-            return None
-        
+            del self.dictDestination[ dID ]
+        except Exception:
+            pass
 
-    def createChannelWindow( self, chn ):
-        c = frmChannel()
-        
-        c.setIRCSocket( self.IRCSocket ) 
-        
-        c.setChannel( chn )
-        c.setWindowTitle( chn )
-        
-        c.onCloseEvent.connect( self.closeChannelWindow )
-        
-        c.setMdiParent( self.getMdiParent() )
 
-        self.frmChannelArray.append( c )
-        
-        c.show()
-        
-        return
-        
-    
-    def ShowMessageAsHTML( self, txt ):
-        sb = self.ui.txtOutput.verticalScrollBar()
+    def GetWorkingDestinationObject( self ):
+        return self.GetDestinationObject( self.ui.listDestination.currentItem().text() )
 
-        self.ui.txtOutput.moveCursor( QTextCursor.End )
-        self.ui.txtOutput.textCursor().insertHtml( '<br>' + txt )
-        
-        sb.setValue( sb.maximum() )
-        
-    
-    def ShowMessageAsText( self, txt ):
-        sb = self.ui.txtOutput.verticalScrollBar()
-
-        self.ui.txtOutput.moveCursor( QTextCursor.End )
-        self.ui.txtOutput.textCursor().insertText( '\n' + txt )
-        
-        sb.setValue( sb.maximum() )
-        
-
-    def send( self, data ):
-        self.IRCSocket.send( data + '\r\n' )
-        return
-        
-
-    def sanitizeHtml( self, html ):
-        #because we will be using an HTML based display component;
-        #it is necessary to replace control characters <> with HTML escape codes.
-        
-        html = html.replace('<', '&#60;')
-        html = html.replace('>', '&#62;')
-        return html
-        
 
     def processPacket( self, data ):
-        
-        QApplication.flush()
-        
         #remove any HTML from the data we display
         data['m'] = self.sanitizeHtml( data['m'] )
 
         #debugging
         print(pprint.PrettyPrinter(indent = 4).pformat( data ))
-
         if (data['c'] == '000'):   #unknown
             pass
-            
         elif (data['c'] == '002'): #tells which server we're on.
             self.setWindowTitle( data['p'] )
             pass
-
         elif (data['c'] == '004'): #unknown
             pass
         elif (data['c'] == '005'):
@@ -180,7 +225,6 @@ class frmMain( QMainWindow ):
             who = self.IRCSocket.extractNick( data['p'] )
             self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, repr( data['a'] ) ) )
             pass
-
         #elif (data['c'] == '200'): #RPL_TRACELINK           "Link <version & debug level> <destination> <next server>"
         #elif (data['c'] == '201'): #RPL_TRACECONNECTING     "Try. <class> <server>"
         #elif (data['c'] == '202'): #RPL_TRACEHANDSHAKE      "H.S. <class> <server>"
@@ -239,19 +283,19 @@ class frmMain( QMainWindow ):
         #elif (data['c'] == '351'): #RPL_VERSION             "<version>.<debuglevel> <server> :<comments>"
         #elif (data['c'] == '352'): #RPL_WHOREPLY            "<channel> <user> <host> <server> <nick> <H|G>[*][@|+] :<hopcount> <real name>"}
         elif (data['c'] == '353'): #RPL_NAMREPLY            "<channel> :[[@|+]<nick> [[@|+]<nick> [...]]]"
-            
+
             #names are delimited with a space in the message data;  data['m']
             #this can happen multipule times for a singlge channel
-            
+
             #locate the channel
-            chan = self.getChannelWindow( data['a'][2] )
-            
-            #get a list of names, 
+            objChan = self.getChannelObject( data['a'][2] )
+
+            #get a list of names,
             nameList = data['m'].split(' ')
-            
+
             #empty dict
             bleh = {}
-            
+
             #compile names in to dict's,
             for name in nameList:
                 if((name[0] == '@') or (name[0] == '+')):
@@ -259,12 +303,12 @@ class frmMain( QMainWindow ):
                     bleh[name[1:]] = name[0]
                 else:
                     bleh[name] = ''
-                    
+
             #pass names to Channel
-            
-            chan.addNames( bleh )
-            
-        
+
+            objChan.addNames( bleh )
+
+
         #elif (data['c'] == '364'): #RPL_LINKS               "<mask> <server> :<hopcount> <server info>"
         #elif (data['c'] == '365'): #RPL_ENDOFLINKS          "<mask> :End of /LINKS list"}
         #elif (data['c'] == '366'): #RPL_ENDOFNAMES          "<channel> :End of /NAMES list"
@@ -283,7 +327,7 @@ class frmMain( QMainWindow ):
         #elif (data['c'] == '393'): #RPL_USERS               ":%-8s %-9s %-8s"
         #elif (data['c'] == '394'): #RPL_ENDOFUSERS          ":End of users"
         #elif (data['c'] == '395'): #RPL_NOUSERS             ":Nobody logged in"
-        
+
         #elif (data['c'] == '401'): #ERR_NOSUCHNICK          "<nickname> :No such nick/channel"
         #elif (data['c'] == '402'): #ERR_NOSUCHSERVER        "<server name> :No such server"
         #elif (data['c'] == '403'): #ERR_NOSUCHCHANNEL       "<channel name> :No such channel"
@@ -327,132 +371,295 @@ class frmMain( QMainWindow ):
         #elif (data['c'] == '483'): #ERR_CANTKILLSERVER      ":You cant kill a server!"
         #elif (data['c'] == '491'): #ERR_NOOPERHOST          ":No O-lines for your host"
         #elif (data['c'] == '501'): #ERR_UMODEUNKNOWNFLAG    ":Unknown MODE flag"
-        #elif (data['c'] == '502'): #ERR_USERSDONTMATCH      ":Cant change mode for other users" 
+        #elif (data['c'] == '502'): #ERR_USERSDONTMATCH      ":Cant change mode for other users"
         #elif (data['c'] == '512'): #                        ":Authorization required to use this nickname"
-        
+
         #elif (data['c'] == 'MODE'):    #
         #elif (data['c'] == 'TOPIC'):   #
-        
+
         elif (data['c'] == 'NICK'):   #
             #[NICK(pythonTestClient)] AWESOME
-            
+
             me = self.IRCSocket.getNick()
-            
+
             who = self.IRCSocket.extractNick( data['p'] )
-            
+
             newnick = data['m']
-            
+
             if (who.lower() == me.lower()):
                 x = 0
-                
+
                 self.IRCSocket.setNick( newnick )
 
-                while (x < len(self.frmChannelArray)):
-                    self.frmChannelArray[x].removeName( who )
-                    self.frmChannelArray[x].addName( newnick )
+                while (x < len(self.objChannelArray)):
+                    self.objChannelArray[x].removeName( who )
+                    self.objChannelArray[x].addName( newnick )
                     x = (x + 1)
 
-        
+
         elif (data['c'] == 'QUIT'):     #
-        
+
             who = self.IRCSocket.extractNick( data['p'] )
-            
+
             #when someone quits the server, remove their name
             #all open channels.
-            
+
             x = 0
-            while (x < len(self.frmChannelArray)):
-                self.frmChannelArray[x].removeName( who )
+            while (x < len(self.objChannelArray)):
+                self.objChannelArray[x].removeName( who )
                 x = (x + 1)
 
 
         elif (data['c'] == 'PRIVMSG'):  #
-        
+
             #who joined the channel
             #no defined at the top of the fucntion
             who = self.IRCSocket.extractNick( data['p'] )
-            
+
             #argument 0 is the channel name, or nickname
-            
+
             whoto = data['a'][0]
-            
-            objChan = self.getChannelWindow( whoto )
-            
-            
+
+            objChan = self.getChannelObject( whoto )
+
+
             if(objChan):
                 #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
                 objChan.ShowMessageInTable( ('<font color=purple>%s</font>' % self.padThis(who)), data['m'])
             else:
                 #this would be the private message handler for direct messages
                 self.ShowMessageAsHTML('[ --> ] &#60;<font color=green>%s</font>&#62; %s' % ( who, data['m'] ))
-            
-        
+
+
         elif (data['c'] == 'PING'):    #
             self.ShowMessageAsHTML( '\n*** PONG (' + data['a'][0] + ')\n' )
             self.send('PONG :' + data['a'][0] )
-            
-        
+
+
         elif (data['c'] == 'JOIN'):    #
             #what is our nickname
             me = self.IRCSocket.getNick()
-            
+
             #who joined the channel
             who = self.IRCSocket.extractNick( data['p'] )
-            
+
             #argument 0 is the channel
             chn = data['a'][0]
-            objChan = self.getChannelWindow( chn )
-            
+            objChan = self.getChannelObject( chn )
+
             if(me.lower() == who.lower()):
                 #the user joined a room, and we should create a window for italic
-                self.createChannelWindow( chn )
+                self.createChannelObject( chn )
             else:
                 if(objChan):
                     objChan.ShowMessageInTable( ('<font color=green>%s</font>' % self.padThis('[+]')), ('%s joined %s.' % (who, chn)) )
                     objChan.addName( who )
-                
-            
-        
-        elif (data['c'] == 'PART'):    #
+                    self.UpdateNames( objChan )
+
+
+
+
+        elif ((data['c'] == 'PART') or (data['c'] == 'QUIT')):    #
             #what is our nickname
             me = self.IRCSocket.getNick()
-            
+
             #who joined the channel
             who = self.IRCSocket.extractNick( data['p'] )
-            
+
             #argument 0 is the channel name
             chn = data['a'][0]
-            objChan = self.getChannelWindow( chn )
-            
+            objChan = self.getChannelObject( chn )
+
             if(me.lower() == who.lower()):
                 #the user joined a room, and we should create a window for italic
                 if(objChan):
                     objChan.ShowMessageAsHTML( '\n*** You parted the channel ***\n' )
-                    
+
             else:
-                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[-]')), ('%s parted %s.' % (who, chn)) )
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[-]')), ('%s left %s.' % (who, chn)) )
                 objChan.removeName( who )
-                
-            
+                self.UpdateNames( objChan )
+
+
         else:
             who = self.IRCSocket.extractNick( data['p'] )
             self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, data['m']) )
             pass
-        
+
+        QApplication.flush()
+        self.UpdateMainDisplay()
+
 
     def padThis( self, what):
         return what.rjust(16, ' ').replace(' ', '&nbsp;')
-        
+
+
+    def sanitizeHtml( self, html ):
+        #because we will be using an HTML based display component;
+        #it is necessary to replace control characters <> with HTML escape codes.
+
+        html = html.replace('<', '&#60;')
+        html = html.replace('>', '&#62;')
+
+        return html
+
+
+    def ShowMessageAsHTML( self, txt ):
+        self.message_buffer += '<br />' + txt
+
+
+    def ShowMessageAsText( self, txt ):
+        self.message_buffer += '\n' + txt
+
+
+    def ShowMessageInTable( self, colOne, colTwo ):
+        #I'd rather use div tags here, but the QTextBrower component is broken, it wont handle width: or float: styles
+        t = '''
+            <table>
+            <tr>
+                <td align="right" style="width:0px;float:left;">
+                    $colOne
+                </td>
+                <td align="left" style="width:0px;float:left;">
+                    $colTwo
+                </td>
+            </tr>
+            </table>
+            ''' #% str(pxSize * 18)
+
+        self.message_buffer += (t.replace('$colOne', colOne).replace('$colTwo', colTwo))
+
+
+    def getMessageBuffer(self):
+        return self.message_buffer
+
+
+    def UpdateMainDisplay( self ):
+        #buffer ID we'll use to display text
+        #dID = self.ui.listDestination.currentItem().text()
+        #if(dID is not None):
+            #objWithBuffer = self.GetDestinationObject(dID)
+            #self.ui.txtOutput.setHtml( objWithBuffer.getMessageBuffer() )
+            #sb = self.ui.txtOutput.verticalScrollBar()
+            #sb.setValue( sb.maximum() )
+
+        try:
+            self.ui.txtOutput.setHtml( self.GetWorkingDestinationObject().getMessageBuffer() )
+            sb = self.ui.txtOutput.verticalScrollBar()
+            sb.setValue( sb.maximum() )
+        except Exception:
+            return
+
+
+    def closeChannelObject( self, chn ):
+
+        objChan = self.objChannelArray[ self.getChannelObjectIndex( chn ) ]
+
+        if (objChan):
+            #we also should part the channel when its closed.
+            self.send('PART ' + chn + ' :I click\'d the red X.')
+
+            #delete it from the array of window objects
+            del self.objChannelArray[ self.getChannelObjectIndex( chn ) ]
+
+        return
+
+
+    def getChannelObjectIndex( self, chn ):
+        #return the index of a channel within objChannelArray
+        x = 0
+        while (x < len(self.objChannelArray)):
+            if(self.objChannelArray[x].getChannel().lower() == chn.lower()):
+                return x
+            else:
+                x = (x + 1)
+
+
+    def getChannelObject( self, chn ):
+        #return the objChannel object that matches the chn string
+        #return [c for c in self.objChannelArray if(c.getChannel().lower() == chn.lower())]
+        try:
+            return self.objChannelArray[ self.getChannelObjectIndex( chn ) ]
+        except:
+            return None
+
+
+    def createChannelObject( self, chn ):
+        c = objChannel()
+        c.setChannel( chn )
+
+        self.objChannelArray.append( c )
+        self.AddDestinationObject( c )
+
+        return
+
+
+    def send( self, data ):
+        self.IRCSocket.send( data + '\r\n' )
+        return
+
+
+    def processCommand( self, cline ):
+
+        objDest = self.GetWorkingDestinationObject()
+
+        #if the command was empty, skip it
+        if((cline == '') or (objDest is None)):
+            return
+
+        cmd = cline.split(' ')
+        cmd[0] = cmd[0].lower()
+
+        if(cmd[0] == 'msg'):
+            who = cmd[1]
+            what = joinIter(cmd[2:], ' ')
+
+            self.send('PRIVMSG %s :%s' % (who, what))
+            objDest.ShowMessageInTable(self.padThis('<-- MSG(%s)' % (who)), what)
+        elif(cmd[0] == 'id'):
+            what = joinIter(cmd[1:], ' ')
+            self.send('PRIVMSG NickServ :IDENTIFY %s' % (what))
+            objDest.ShowMessageInTable('[IDENTIFY]', '******')
+        else:
+            self.send(joinIter(cmd[0:], ' '))
+            pass
+
+        return
+
 
     def processInput( self, caller, txt ):
-        #this function is required by the txtInputFilter class so that
-        #this object will recieve input from the event filter.
-        
-        #if we're working with a QString convert it
-        
-        self.IRCSocket.send( txt + '\r\n' )
-        self.ShowMessageAsHTML( '<b>&#60;sent&#62; ' + txt + '</b>'  )
-        
-        return 
-        
+        #this function is required by the txtInputFilter class so that this object will recieve input from the event filter.
+        txt = self.sanitizeHtml( txt )
 
+        if (self.IRCSocket):
+            if(txt):
+                if(txt[0] == '/'):
+                    self.processCommand(txt[1:])
+                    #this should turn into a command handler at some point
+                    #self.IRCSocket.send( txt[1:] + '\r\n' )
+
+                    #try and display the command we've sent on the current destination objects's buffer
+                    #try:
+                    #    self.GetWorkingDestinationObject().ShowMessageInTable( '%s' % (self.padThis('[command]')), txt[1:] )
+                    #except Exception:
+                    #    pass
+
+                    #self.ShowMessageInTable( '%s' % (self.padThis('[command]')), txt[1:] )
+                else:
+                    #if our current destination object's id begins with a #, then its a channel
+                    dID = self.GetWorkingDestinationObject().getDestinationID()
+
+                    if( dID[0] == '#' ):
+                        objChan = self.getChannelObject( dID )
+                        self.IRCSocket.send('PRIVMSG %s :%s' % (objChan.getChannel(), txt))
+                        objChan.ShowMessageInTable(('<font color=purple><b>%s</b></font>' % self.padThis(self.IRCSocket.getNick())), txt)
+            else:
+                return
+
+        self.UpdateMainDisplay()
+        self.ui.txtInput.setPlainText('')
+        return
+
+
+    def __del__ ( self ):
+        self.ui = None
