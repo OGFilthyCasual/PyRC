@@ -13,7 +13,7 @@ class InputFilter( QObject ):
     """
         example code taken from http://stackoverflow.com/questions/2276810/pyqt-typeerror
 
-        This class is meant to be used exclusivly with QPlainTextEdit
+        This class is meant to be used exclusivly with QLineEdit
 
         def registerListener(self, obj) --
         this method will specify an object to recive text via processInput()
@@ -51,16 +51,16 @@ class InputFilter( QObject ):
             if ((event.key() == Qt.Key_Return) or (event.key() == Qt.Key_Enter)):
                 if((self.objListener) and (hasattr( self.objListener, 'processInput' ))):
                     #add our input to the list
-                    self.listHistory.append( obj.toPlainText() )
+                    self.listHistory.append( obj.text() )
                     #mark the highest bound element
                     self.listHistoryPos = len(self.listHistory)
                     #call the listener
-                    self.objListener.processInput( obj, obj.toPlainText() )
+                    self.objListener.processInput( obj, obj.text() )
                     #clear the plain edit box
-                    obj.setPlainText('')
+                    obj.setText('')
                     #print(self.listHistoryPos)
                 else:
-                    print('InputFilter::objListener is undefined or does not support processInput()')
+                    print('InputFilter.registerListener() -- The object that was passed does not support processInput()')
                 return True
             elif (event.key() == Qt.Key_Up):
                 if((self.listHistoryPos is None) or ((self.listHistoryPos - 1) < 0)):
@@ -70,10 +70,10 @@ class InputFilter( QObject ):
                     if(self.listHistoryPos == len(self.listHistory)):
                         #if we've pressed up and we're sitting on the last element
                         self.listHistoryPos = (self.listHistoryPos - 1)
-                        obj.setPlainText( self.listHistory[ (len(self.listHistory) - 1) ] )
+                        obj.setText( self.listHistory[ (len(self.listHistory) - 1) ] )
                     else:
                         self.listHistoryPos = (self.listHistoryPos - 1)
-                        obj.setPlainText( self.listHistory[ (self.listHistoryPos) ] )
+                        obj.setText( self.listHistory[ (self.listHistoryPos) ] )
 
                 obj.selectAll()
                 return True
@@ -83,7 +83,7 @@ class InputFilter( QObject ):
 
                 if ((self.listHistoryPos + 1) < len(self.listHistory)):
                     self.listHistoryPos = self.listHistoryPos + 1
-                    obj.setPlainText( self.listHistory[ (self.listHistoryPos) ] )
+                    obj.setText( self.listHistory[ (self.listHistoryPos) ] )
 
                 obj.selectAll()
                 return True
@@ -99,6 +99,6 @@ class InputFilter( QObject ):
             #we should only set objListener if it contains the processInput function
             self.objListener = obj
         else:
-            print('txtInputFilter::registerListener object does not support processInput()')
+            print('InputFilter.registerListener() -- The object that was passed does not support processInput()')
 
         return

@@ -131,6 +131,9 @@ class frmMainWindow ( QMainWindow ):
 
         self.ui.txtInput.installEventFilter( self.ffilter )
 
+        #remove the focus indicator, its ugly
+        self.ui.txtInput.setAttribute(Qt.WA_MacShowFocusRect, 0)
+
         self.fontInfo = QFontInfo( self.ui.txtOutput.textCursor().charFormat().font() )
 
         self.ui.listDestination.itemClicked.connect(self.listDestination_OnClick)
@@ -657,7 +660,7 @@ class frmMainWindow ( QMainWindow ):
                 return
 
         self.UpdateMainDisplay()
-        self.ui.txtInput.setPlainText('')
+        self.ui.txtInput.setText('')
         return
 
 
