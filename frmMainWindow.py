@@ -108,19 +108,19 @@ class frmMainWindow ( QMainWindow ):
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
 
-        #array of channel objects
+        #array of channel objects, for the server we're connected to
         self.objChannelArray = []
 
-        #array of private message users
+        #array of private message users, if we're one on one converstations
         self.objPrivateArray = []
 
-        #array of buffer IDs, Server(), Users, #Channels, etc. Dict which points to objects with a .getMessageBuffer() function
         self.dictDestination = {}
 
         # string that identifies our object
         self.destinationID = ''
         self.message_buffer = ''
 
+        #our destination ID is always server
         self.destinationID = 'Server'
 
         self.ui = Ui_frmMainWindow()
@@ -389,12 +389,19 @@ class frmMainWindow ( QMainWindow ):
 
             newnick = data['m']
 
+            #the current destination object
+            objDest = self.GetWorkingDestinationObject()
+
             if (who.lower() == me.lower()):
                 x = 0
 
                 self.IRCSocket.setNick( newnick )
 
                 while (x < len(self.objChannelArray)):
+                    if(self.objChannelArray[x].getChannel().lower() == objDest.getDestinationID().lower()):
+                        self.UpdateNames( destObj )
+                        pass
+
                     self.objChannelArray[x].removeName( who )
                     self.objChannelArray[x].addName( newnick )
                     x = (x + 1)
@@ -616,15 +623,15 @@ class frmMainWindow ( QMainWindow ):
         if(cmd[0] == 'msg'):
             who = cmd[1]
             what = joinIter(cmd[2:], ' ')
-
             self.send('PRIVMSG %s :%s' % (who, what))
             objDest.ShowMessageInTable(self.padThis('<-- MSG(%s)' % (who)), what)
         elif(cmd[0] == 'id'):
             what = joinIter(cmd[1:], ' ')
             self.send('PRIVMSG NickServ :IDENTIFY %s' % (what))
-            objDest.ShowMessageInTable('[IDENTIFY]', '******')
+            objDest.ShowMessageInTable(self.padThis('[IDENTIFY]'), '******')
         else:
             self.send(joinIter(cmd[0:], ' '))
+            objDest.ShowMessageInTable(self.padThis('[COMMAND SENT]'), joinIter(cmd[0:], ' ').upper())
             pass
 
         return
@@ -639,7 +646,7 @@ class frmMainWindow ( QMainWindow ):
                 if(txt[0] == '/'):
                     self.processCommand(txt[1:])
                     #this should turn into a command handler at some point
-                    #self.IRCSocket.send( txt[1:] + '\r\n' )
+                    #self.send( txt[1:] + '\r\n' )
 
                     #try and display the command we've sent on the current destination objects's buffer
                     #try:
@@ -654,7 +661,7 @@ class frmMainWindow ( QMainWindow ):
 
                     if( dID[0] == '#' ):
                         objChan = self.getChannelObject( dID )
-                        self.IRCSocket.send('PRIVMSG %s :%s' % (objChan.getChannel(), txt))
+                        self.send('PRIVMSG %s :%s' % (objChan.getChannel(), txt))
                         objChan.ShowMessageInTable(('<font color=purple><b>%s</b></font>' % self.padThis(self.IRCSocket.getNick())), txt)
             else:
                 return

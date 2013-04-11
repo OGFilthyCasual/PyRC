@@ -166,7 +166,7 @@ class IRCSocketThread(asyncore.dispatcher_with_send, QThread):
         self.send( 'NICK %s\r\n' % self.nick)
         self.send( 'USER %s - - %s\r\n' % (self.user, ':Python-3.3.0'))
         self.send( 'USERHOST %s\r\n' % self.user)
-        
+
 
     def handle_close( self ):
         self.close()
