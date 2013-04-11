@@ -21,55 +21,14 @@ from modIRCSocketThread import IRCSocketThread
 def joinIter(i, c):
     return c.join(i)
 
-class objChannel( object ):
+class objDestination( object ):
+    #Used as a sort of data model for storing a message buffer, which we can call up at any time. All objects that we can 'converse' with will inherit this class
 
-    def __init__ ( self, parent = None ):
-        #string containing the name of the IRC Channel
-        self.channel = None
+    message_buffer = ''
 
-        #buffer
+    def __init__( self ):
         self.message_buffer = ''
-
-        #topic of the channel
-        self.topic = ''
-
-        #names on the channel, we use a dict for name/mode data, where the nicknames are keys, and the data is user modes (@+)
-        self.names = {}
-
-        return
-
-    def addName( self, name ):
-        self.names[name] = ''
-        pass
-
-
-    def removeName( self, name ):
-        #this is the prefixed name of the user.
-        if (name in list(self.names)):
-            del self.names[name]
-        return
-
-
-    def addNames( self, nnames = {} ):
-        #merge names with the existing
-        self.names.update( nnames )
-        return
-
-
-    def getNames( self ):
-        return self.names
-
-
-    def getDestinationID( self ):
-        return self.channel
-
-
-    def getChannel( self ):
-        return self.channel
-
-
-    def setChannel( self, chn ):
-        self.channel = chn
+        self.destination_id = None
 
 
     def ShowMessageAsHTML( self, txt ):
@@ -94,16 +53,80 @@ class objChannel( object ):
             </tr>
             </table>
             ''' #% str(pxSize * 18)
-
         self.message_buffer += ( t.replace('$colOne', colOne).replace('$colTwo', colTwo))
 
 
     def getMessageBuffer(self):
         return self.message_buffer
 
+    def setDestinationID(self, did ):
+        self.destination_id = did
 
-class frmMainWindow ( QMainWindow ):
-    """frmMainWindow inherits QMainWindow"""
+
+    def getDestinationID( self ):
+        return self.destination_id
+
+    def padThis( self, what):
+        return what.rjust(16, ' ').replace(' ', '&nbsp;')
+
+
+    def sanitizeHtml( self, html ):
+        #because we will be using an HTML based display component;
+        #it is necessary to replace control characters <> with HTML escape codes.
+
+        html = html.replace('<', '&#60;')
+        html = html.replace('>', '&#62;')
+
+        return html
+
+
+class objChannel( objDestination ):
+
+    def __init__ ( self, parent = None ):
+        #string containing the name of the IRC Channel
+        self.channel = None
+
+        #topic of the channel
+        self.topic = ''
+
+        #names on the channel, we use a dict for name/mode data, where the nicknames are keys, and the data is user modes (@+)
+        self.names = {}
+
+        return
+
+
+    def addName( self, name ):
+        self.names[name] = ''
+        pass
+
+
+    def removeName( self, name ):
+        #this is the prefixed name of the user.
+        if (name in list(self.names)):
+            del self.names[name]
+        return
+
+
+    def addNames( self, nnames = {} ):
+        #merge names with the existing
+        self.names.update( nnames )
+        return
+
+
+    def getNames( self ):
+        return self.names
+
+
+    def getChannel( self ):
+        return self.channel
+
+
+    def setChannel( self, chn ):
+        self.channel = chn
+        self.setDestinationID( chn )
+
+
+class frmMainWindow ( QMainWindow, objDestination ):
 
     def __init__ ( self, parent = None ):
         QMainWindow.__init__( self, parent )
@@ -115,13 +138,6 @@ class frmMainWindow ( QMainWindow ):
         self.objPrivateArray = []
 
         self.dictDestination = {}
-
-        # string that identifies our object
-        self.destinationID = ''
-        self.message_buffer = ''
-
-        #our destination ID is always server
-        self.destinationID = 'Server'
 
         self.ui = Ui_frmMainWindow()
         self.ui.setupUi( self )
@@ -138,6 +154,7 @@ class frmMainWindow ( QMainWindow ):
 
         self.ui.listDestination.itemClicked.connect(self.listDestination_OnClick)
 
+        self.setDestinationID( 'Server' )
         self.AddDestinationObject( self )
 
         self.IRCSocket = IRCSocketThread()
@@ -153,10 +170,6 @@ class frmMainWindow ( QMainWindow ):
         pass
 
 
-    def getDestinationID(self):
-        return self.destinationID
-
-
     def listDestination_OnClick( self, data ):
         self.UpdateMainDisplay()
 
@@ -169,9 +182,8 @@ class frmMainWindow ( QMainWindow ):
 
 
     def UpdateNames( self, objChan ):
+        #this is pretty terrible idea, I'll imporve it later
         self.ui.listNames.clear()
-
-        #objChan = self.getChannelObject( chn )
 
         if( objChan ):
             namez = objChan.getNames()
@@ -466,9 +478,6 @@ class frmMainWindow ( QMainWindow ):
                     objChan.addName( who )
                     self.UpdateNames( objChan )
 
-
-
-
         elif ((data['c'] == 'PART') or (data['c'] == 'QUIT')):    #
             #what is our nickname
             me = self.IRCSocket.getNick()
@@ -498,50 +507,6 @@ class frmMainWindow ( QMainWindow ):
 
         QApplication.flush()
         self.UpdateMainDisplay()
-
-
-    def padThis( self, what):
-        return what.rjust(16, ' ').replace(' ', '&nbsp;')
-
-
-    def sanitizeHtml( self, html ):
-        #because we will be using an HTML based display component;
-        #it is necessary to replace control characters <> with HTML escape codes.
-
-        html = html.replace('<', '&#60;')
-        html = html.replace('>', '&#62;')
-
-        return html
-
-
-    def ShowMessageAsHTML( self, txt ):
-        self.message_buffer += '<br />' + txt
-
-
-    def ShowMessageAsText( self, txt ):
-        self.message_buffer += '\n' + txt
-
-
-    def ShowMessageInTable( self, colOne, colTwo ):
-        #I'd rather use div tags here, but the QTextBrower component is broken, it wont handle width: or float: styles
-        t = '''
-            <table>
-            <tr>
-                <td align="right" style="width:0px;float:left;">
-                    $colOne
-                </td>
-                <td align="left" style="width:0px;float:left;">
-                    $colTwo
-                </td>
-            </tr>
-            </table>
-            ''' #% str(pxSize * 18)
-
-        self.message_buffer += (t.replace('$colOne', colOne).replace('$colTwo', colTwo))
-
-
-    def getMessageBuffer(self):
-        return self.message_buffer
 
 
     def UpdateMainDisplay( self ):
@@ -645,18 +610,8 @@ class frmMainWindow ( QMainWindow ):
             if(txt):
                 if(txt[0] == '/'):
                     self.processCommand(txt[1:])
-                    #this should turn into a command handler at some point
-                    #self.send( txt[1:] + '\r\n' )
-
-                    #try and display the command we've sent on the current destination objects's buffer
-                    #try:
-                    #    self.GetWorkingDestinationObject().ShowMessageInTable( '%s' % (self.padThis('[command]')), txt[1:] )
-                    #except Exception:
-                    #    pass
-
-                    #self.ShowMessageInTable( '%s' % (self.padThis('[command]')), txt[1:] )
                 else:
-                    #if our current destination object's id begins with a #, then its a channel
+                    #if our current destination object's id begins with a #, then its a channel, send a privmsg
                     dID = self.GetWorkingDestinationObject().getDestinationID()
 
                     if( dID[0] == '#' ):
