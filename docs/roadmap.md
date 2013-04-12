@@ -1,7 +1,7 @@
 ##Roadmap
 
 #####Near future
-* Command processing, msg, join, part, quit, id
+* Command processing, <s>msg</s>, <s>id</s>, <s>statchan</s>
 * Connection dialog, with persistant server list
 * Create options for displaying join, part, quit, etc
 * Display user modes in the nickname list & support mode changes

@@ -6,8 +6,9 @@ PyRC by Michael Allen C. Isaac is licensed under a Creative Commons Attribution-
 http://creativecommons.org/licenses/by-nc-sa/3.0/
 """
 
-import sys
 import pprint
+import datetime
+import time
 
 from PyQt4 import uic
 from PyQt4.QtCore import *
@@ -17,6 +18,12 @@ from PyQt4.QtGui import *
 
 from modInputFilter import InputFilter
 from modIRCSocketThread import IRCSocketThread
+
+from frmConnect import frmConnect
+
+def getTimeStamp():
+    return ('[%s] ' % str(datetime.datetime.fromtimestamp(int(time.time())).strftime('%H:%M')))
+
 
 def joinIter(i, c):
     return c.join(i)
@@ -34,11 +41,11 @@ class objDestination( object ):
 
 
     def ShowMessageAsHTML( self, txt ):
-        self.message_buffer += '<br />' + txt
+        self.message_buffer += '<br />' + getTimeStamp() + txt
 
 
     def ShowMessageAsText( self, txt ):
-        self.message_buffer += '\n' + txt
+        self.message_buffer += '\n' + getTimeStamp() + txt
 
 
     def ShowMessageInTable( self, colOne, colTwo ):
@@ -46,6 +53,9 @@ class objDestination( object ):
         t = '''
             <table>
             <tr>
+                <td align="right" style="width:0px;float:left;">
+                    $timeStamp
+                </td>
                 <td align="right" style="width:0px;float:left;">
                     $colOne
                 </td>
@@ -55,7 +65,7 @@ class objDestination( object ):
             </tr>
             </table>
             ''' #% str(pxSize * 18)
-        self.message_buffer += ( t.replace('$colOne', colOne).replace('$colTwo', colTwo))
+        self.message_buffer += ( t.replace('$colOne', colOne).replace('$colTwo', colTwo).replace('$timeStamp', getTimeStamp()))
 
 
     def getMessageBuffer(self):
@@ -172,6 +182,9 @@ class frmMainWindow ( QMainWindow, objDestination ):
         #Select the first destination
         self.ui.listDestination.setCurrentRow(0)
 
+        #self.winConnect = frmConnect()
+        #self.winConnect.show()
+
         pass
 
 
@@ -232,18 +245,21 @@ class frmMainWindow ( QMainWindow, objDestination ):
 
         #debugging
         print(pprint.PrettyPrinter(indent = 4).pformat( data ))
-        if (data['c'] == '000'):   #unknown
+        if (data['c'] == '000'):
             pass
-        elif (data['c'] == '002'): #tells which server we're on.
+        elif (data['c'] == '001'):
             self.setWindowTitle( data['p'] )
             pass
-        elif (data['c'] == '004'): #unknown
-            pass
+        #elif (data['c'] == '002'):
+        #    pass
+        #elif (data['c'] == '003'):
+        #    pass
+        #elif (data['c'] == '004'):
+        #    pass
         elif (data['c'] == '005'):
-            #these lines tell us all about server settings,
-            #including supported modes, channels, and encoding.
-            who = self.IRCSocket.extractNick( data['p'] )
-            self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, repr( data['a'] ) ) )
+            #these lines tell us all about server settings, including supported modes, channels, and encoding.
+            #who = self.IRCSocket.extractNick( data['p'] )
+            #self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, repr( data['a'] ) ) )
             pass
         #elif (data['c'] == '200'): #RPL_TRACELINK           "Link <version & debug level> <destination> <next server>"
         #elif (data['c'] == '201'): #RPL_TRACECONNECTING     "Try. <class> <server>"
@@ -278,7 +294,9 @@ class frmMainWindow ( QMainWindow, objDestination ):
         #elif (data['c'] == '261'): #RPL_TRACELOG            "File <logfile> <debug level>"
         #elif (data['c'] == '300'): #RPL_NONE                Dummy reply number. Not used.
         #elif (data['c'] == '301'): #RPL_AWAY                "<nick> :<away message>"
-        #elif (data['c'] == '302'): #RPL_USERHOST            ":[<reply>{<space><reply>}]"
+
+        elif (data['c'] == '302'): #RPL_USERHOST            ":[<reply>{<space><reply>}]"
+            pass
         #elif (data['c'] == '303'): #RPL_ISON                ":[<nick> {<space><nick>}]"
         #elif (data['c'] == '305'): #RPL_UNAWAY              ":You are no longer marked as being away"
         #elif (data['c'] == '306'): #RPL_NOWAWAY             ":You have been marked as being away"
@@ -418,9 +436,9 @@ class frmMainWindow ( QMainWindow, objDestination ):
             if(me.lower() == who.lower()):
                 #we're the one who changed out nickname
                 self.IRCSocket.setNick( nick )
-                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[NICK]')), ('You changed your name to %s.' % (nick)) )
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % ('[NICK]')), ('You changed your name to %s.' % (nick)) )
             else:
-                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[NICK]')), ('%s changed their name to %s.' % (who, nick)) )
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % ('[NICK]')), ('%s changed their name to %s.' % (who, nick)) )
 
 
         elif (data['c'] == 'QUIT'):     #
@@ -442,9 +460,9 @@ class frmMainWindow ( QMainWindow, objDestination ):
                 self.UpdateNames( objChan )
 
             if(me.lower() == who.lower()):
-                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[QUIT]')), ('You left IRC (%s)' % (why)) )
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % '[QUIT]'), ('You left IRC (%s)' % (why)) )
             else:
-                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[QUIT]')), ('%s left IRC (%s)' % (who, why)) )
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % '[QUIT]'), ('%s left IRC (%s)' % (who, why)) )
 
         elif (data['c'] == 'NOTICE'):  #
 
@@ -467,17 +485,16 @@ class frmMainWindow ( QMainWindow, objDestination ):
                 #notice is to a channel
                 objChan = self.getChannelObject( whoto )
                 if(objChan):
-                    objChan.ShowMessageInTable(('<font color=red>%s</font>' % self.padThis('[#NOTICE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
+                    objChan.ShowMessageInTable(('<font style="color: white; background-color: red;">-%s-</font>' % (('%s(%s)' % (who, whoto))), data['m']))
                 else:
                     #we couldnt locate the channel object, failover
-                    self.getWorkingDestinationObject().ShowMessageInTable(('<font color=red>%s</font>' % self.padThis('[#NOTICE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
+                    self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: white; background-color: red;">-%s-</font>' % (('%s(%s)' % (who, whoto))), data['m']))
             elif(whoto.lower() == me.lower()):
-                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: red">%s</font>' % self.padThis(who)), data['m'])
+                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: white; background-color: red;">-%s-</font>' % who), data['m'])
             else:
-                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: red">%s</font>' % self.padThis(who)), data['m'])
+                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: white; background-color: red;">-%s-</font>' % who), data['m'])
 
         elif (data['c'] == 'PRIVMSG'):  #
-
             #this handler needs updated to be more like NOTICE
 
             #{   'a': ['#bitcoin'],
@@ -485,20 +502,35 @@ class frmMainWindow ( QMainWindow, objDestination ):
             #    'm': "They've had the highest earlier today",
             #    'p': 'Nerevar!~chatzilla@76-228-31-141.lightspeed.frokca.sbcglobal.net'}
 
+            #what is our nickname
+            me = self.IRCSocket.getNick()
+
             #who sent the message
             who = self.IRCSocket.extractNick( data['p'] )
 
             #argument 0 is the channel name, or nickname
             whoto = data['a'][0]
 
-            objChan = self.getChannelObject( whoto )
+            #objChan = self.getChannelObject( whoto )
+            #
+            #if( objChan ):
+            #    #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
+            #    objChan.ShowMessageInTable(('<font color=purple>%s</font>' % (who)), data['m'])
+            #else:
+            #    self.getWorkingDestinationObject().ShowMessageInTable(('<font color=blue>%s</font>' % ('[MESSAGE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
 
-            if( objChan ):
-                #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
-                objChan.ShowMessageInTable(('<font color=purple>%s</font>' % self.padThis(who)), data['m'])
+            if(whoto[0] == '#'):
+                #privmsg is to a channel
+                objChan = self.getChannelObject( whoto )
+                if(objChan):
+                    objChan.ShowMessageInTable(('&#60;<font style="color: purple">%s</font>&#62;' % (who)), data['m'])
+                else:
+                    #we couldnt locate the channel object, failover
+                    self.getWorkingDestinationObject().ShowMessageInTable(('&#60;<font color=purple>%s</font>&#62;' % (('%s(%s)' % (who, whoto))), data['m']))
+            elif(whoto.lower() == me.lower()):
+                self.getWorkingDestinationObject().ShowMessageInTable(('-<font style="color: purple">%s</font>-' % who), data['m'])
             else:
-                self.getWorkingDestinationObject().ShowMessageInTable(('<font color=blue>%s</font>' % self.padThis('[MESSAGE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
-
+                self.getWorkingDestinationObject().ShowMessageInTable(('&#60;<font style="color: purple">%s</font>&#62;' % who), data['m'])
 
 
         elif (data['c'] == 'PING'):    #
@@ -522,7 +554,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
                 self.createChannelObject( chn )
             else:
                 if(objChan):
-                    objChan.ShowMessageInTable( ('<font color=green>%s</font>' % self.padThis('[JOIN]')), ('%s joined %s.' % (who, chn)) )
+                    objChan.ShowMessageInTable( ('<font color=green>%s</font>' % ('[JOIN]')), ('%s joined %s.' % (who, chn)) )
                     objChan.addName( who )
                     self.UpdateNames( objChan )
 
@@ -543,14 +575,17 @@ class frmMainWindow ( QMainWindow, objDestination ):
                     objChan.ShowMessageAsHTML( '\n*** You parted the channel ***\n' )
 
             else:
-                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[PART]')), ('%s left %s.' % (who, chn)) )
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % ('[PART]')), ('%s left %s.' % (who, chn)) )
                 objChan.removeName( who )
                 self.UpdateNames( objChan )
 
 
         else:
             who = self.IRCSocket.extractNick( data['p'] )
-            self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, data['m']) )
+
+            #self.ShowMessageAsHTML( '[%s(%s)] %s' % (data['c'], who, data['m']) )
+            self.ShowMessageAsHTML(data['m'])
+
             pass
 
         QApplication.flush()
@@ -634,20 +669,20 @@ class frmMainWindow ( QMainWindow, objDestination ):
             who = cmd[1]
             what = joinIter(cmd[2:], ' ')
             self.send('PRIVMSG %s :%s' % (who, what))
-            objDest.ShowMessageInTable(self.padThis('<-- MSG(%s)' % (who)), what)
+            objDest.ShowMessageInTable(('<-- MSG(%s)' % (who)), what)
         elif(cmd[0] == 'ID'):
             what = joinIter(cmd[1:], ' ')
             self.send('PRIVMSG NickServ :IDENTIFY %s' % (what))
-            objDest.ShowMessageInTable(self.padThis('[IDENTIFY]'), '******')
+            objDest.ShowMessageInTable(('[IDENTIFY]'), '******')
         elif(cmd[0] == 'STATCHAN'):
             if(objChan):
-                objDest.ShowMessageInTable(self.padThis('[STATS]'), ('%s has %s users.' % (dID, str(len(objChan.getNames())))))
+                objDest.ShowMessageInTable(('[STATS]'), ('%s has %s users.' % (dID, str(len(objChan.getNames())))))
             else:
-                objDest.ShowMessageInTable(self.padThis('[ERROR]'), 'Use the STATCHAN command from a #Channel')
+                objDest.ShowMessageInTable(('[ERROR]'), 'Use the STATCHAN command from a #Channel')
 
         else:
             self.send(joinIter(cmd[0:], ' '))
-            objDest.ShowMessageInTable(self.padThis('[COMMAND SENT]'), joinIter(cmd[0:], ' ').upper())
+            objDest.ShowMessageInTable(('[COMMAND SENT]'), joinIter(cmd[0:], ' ').upper())
             pass
 
         return
@@ -668,7 +703,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
                     if( dID[0] == '#' ):
                         objChan = self.getChannelObject( dID )
                         self.send('PRIVMSG %s :%s' % (objChan.getChannel(), txt))
-                        objChan.ShowMessageInTable(('<font color=purple><b>%s</b></font>' % self.padThis(self.IRCSocket.getNick())), txt)
+                        objChan.ShowMessageInTable(('&#60;<font style="color: blue;"><b>%s</b></font>&#62;' % (self.IRCSocket.getNick())), txt)
             else:
                 return
 
