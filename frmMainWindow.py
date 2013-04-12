@@ -24,6 +24,8 @@ def joinIter(i, c):
 class objDestination( object ):
     #Used as a sort of data model for storing a message buffer, which we can call up at any time. All objects that we can 'converse' with will inherit this class
 
+    #It might be possible to use QTextDocument class for the buffer, and then just switch txtOutput's document, for smoother visual updates.
+
     message_buffer = ''
 
     def __init__( self ):
@@ -145,10 +147,13 @@ class frmMainWindow ( QMainWindow, objDestination ):
         self.ffilter = InputFilter( self.ui.txtInput )
         self.ffilter.registerListener( self )
 
-        self.ui.txtInput.installEventFilter( self.ffilter )
-
         #remove the focus indicator, its ugly
         self.ui.txtInput.setAttribute(Qt.WA_MacShowFocusRect, 0)
+        self.ui.txtInput.installEventFilter( self.ffilter )
+
+        #make the display component read only
+        self.ui.txtOutput.setReadOnly(True)
+        self.ui.txtOutput.setTextInteractionFlags(Qt.TextSelectableByMouse or Qt.LinksAccessibleByMouse);
 
         self.fontInfo = QFontInfo( self.ui.txtOutput.textCursor().charFormat().font() )
 
@@ -173,7 +178,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
     def listDestination_OnClick( self, data ):
         self.UpdateMainDisplay()
 
-        dID = self.GetWorkingDestinationObject().getDestinationID()
+        dID = self.getWorkingDestinationObject().getDestinationID()
 
         if( dID[0] == '#' ):
             self.UpdateNames( self.getChannelObject( dID ) )
@@ -205,7 +210,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
             sys.exit(0)
 
 
-    def GetDestinationObject(self, dID ):
+    def getDestinationObject(self, dID ):
         #return the object if there is one, otherwise return none.
         return self.dictDestination[ dID ]
 
@@ -217,8 +222,8 @@ class frmMainWindow ( QMainWindow, objDestination ):
             pass
 
 
-    def GetWorkingDestinationObject( self ):
-        return self.GetDestinationObject( self.ui.listDestination.currentItem().text() )
+    def getWorkingDestinationObject( self ):
+        return self.getDestinationObject( self.ui.listDestination.currentItem().text() )
 
 
     def processPacket( self, data ):
@@ -393,64 +398,107 @@ class frmMainWindow ( QMainWindow, objDestination ):
         #elif (data['c'] == 'TOPIC'):   #
 
         elif (data['c'] == 'NICK'):   #
-            #[NICK(pythonTestClient)] AWESOME
-
+            #what is our nickname
             me = self.IRCSocket.getNick()
 
+            #who changed their nick
             who = self.IRCSocket.extractNick( data['p'] )
 
-            newnick = data['m']
+            #data['m'] is the new nickname
+            nick = data['m']
 
-            #the current destination object
-            objDest = self.GetWorkingDestinationObject()
+            #we can only see nickname changes if we're on a channel, so it stands to reason we are
+            objChan = self.getChannelObject( self.getWorkingDestinationObject().getDestinationID() )
 
-            if (who.lower() == me.lower()):
-                x = 0
+            if(objChan):
+                objChan.removeName(who)
+                objChan.addName(nick)
+                self.UpdateNames( objChan )
 
-                self.IRCSocket.setNick( newnick )
-
-                while (x < len(self.objChannelArray)):
-                    if(self.objChannelArray[x].getChannel().lower() == objDest.getDestinationID().lower()):
-                        self.UpdateNames( destObj )
-                        pass
-
-                    self.objChannelArray[x].removeName( who )
-                    self.objChannelArray[x].addName( newnick )
-                    x = (x + 1)
+            if(me.lower() == who.lower()):
+                #we're the one who changed out nickname
+                self.IRCSocket.setNick( nick )
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[NICK]')), ('You changed your name to %s.' % (nick)) )
+            else:
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[NICK]')), ('%s changed their name to %s.' % (who, nick)) )
 
 
         elif (data['c'] == 'QUIT'):     #
 
+            #what is our nickname
+            me = self.IRCSocket.getNick()
+
+            #who changed their nick
             who = self.IRCSocket.extractNick( data['p'] )
 
-            #when someone quits the server, remove their name
-            #all open channels.
+            #data['m'] is the new nickname
+            why = data['m']
 
-            x = 0
-            while (x < len(self.objChannelArray)):
-                self.objChannelArray[x].removeName( who )
-                x = (x + 1)
+            #we can only see quit if we're on a channel, so it stands to reason we are
+            objChan = self.getChannelObject( self.getWorkingDestinationObject().getDestinationID() )
 
+            if(objChan):
+                objChan.removeName(who)
+                self.UpdateNames( objChan )
 
-        elif (data['c'] == 'PRIVMSG'):  #
+            if(me.lower() == who.lower()):
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[QUIT]')), ('You left IRC (%s)' % (why)) )
+            else:
+                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[QUIT]')), ('%s left IRC (%s)' % (who, why)) )
 
-            #who joined the channel
-            #no defined at the top of the fucntion
+        elif (data['c'] == 'NOTICE'):  #
+
+            #much like private messages, notices can be sent to a user or the entire channel
+
+            #{   'a': ['pythonTestClient'],
+            #    'c': 'NOTICE',
+            #    'm': 'Invalid password for \x02pythonTestClient\x02.',
+            #    'p': 'NickServ!NickServ@services.'}
+
+            #what is our nickname
+            me = self.IRCSocket.getNick()
+
             who = self.IRCSocket.extractNick( data['p'] )
 
             #argument 0 is the channel name, or nickname
+            whoto = data['a'][0]
 
+            if(whoto[0] == '#'):
+                #notice is to a channel
+                objChan = self.getChannelObject( whoto )
+                if(objChan):
+                    objChan.ShowMessageInTable(('<font color=red>%s</font>' % self.padThis('[#NOTICE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
+                else:
+                    #we couldnt locate the channel object, failover
+                    self.getWorkingDestinationObject().ShowMessageInTable(('<font color=red>%s</font>' % self.padThis('[#NOTICE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
+            elif(whoto.lower() == me.lower()):
+                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: red">%s</font>' % self.padThis(who)), data['m'])
+            else:
+                self.getWorkingDestinationObject().ShowMessageInTable(('<font style="color: red">%s</font>' % self.padThis(who)), data['m'])
+
+        elif (data['c'] == 'PRIVMSG'):  #
+
+            #this handler needs updated to be more like NOTICE
+
+            #{   'a': ['#bitcoin'],
+            #    'c': 'PRIVMSG',
+            #    'm': "They've had the highest earlier today",
+            #    'p': 'Nerevar!~chatzilla@76-228-31-141.lightspeed.frokca.sbcglobal.net'}
+
+            #who sent the message
+            who = self.IRCSocket.extractNick( data['p'] )
+
+            #argument 0 is the channel name, or nickname
             whoto = data['a'][0]
 
             objChan = self.getChannelObject( whoto )
 
-
-            if(objChan):
+            if( objChan ):
                 #objChan.ShowMessageAsHTML( '&#60;<font color=purple>%s</font>&#62; %s' % (who, data['m']))
-                objChan.ShowMessageInTable( ('<font color=purple>%s</font>' % self.padThis(who)), data['m'])
+                objChan.ShowMessageInTable(('<font color=purple>%s</font>' % self.padThis(who)), data['m'])
             else:
-                #this would be the private message handler for direct messages
-                self.ShowMessageAsHTML('[ --> ] &#60;<font color=green>%s</font>&#62; %s' % ( who, data['m'] ))
+                self.getWorkingDestinationObject().ShowMessageInTable(('<font color=blue>%s</font>' % self.padThis('[MESSAGE]')), ('&#60;%s&#62; %s' % (who, data['m'])))
+
 
 
         elif (data['c'] == 'PING'):    #
@@ -474,11 +522,11 @@ class frmMainWindow ( QMainWindow, objDestination ):
                 self.createChannelObject( chn )
             else:
                 if(objChan):
-                    objChan.ShowMessageInTable( ('<font color=green>%s</font>' % self.padThis('[+]')), ('%s joined %s.' % (who, chn)) )
+                    objChan.ShowMessageInTable( ('<font color=green>%s</font>' % self.padThis('[JOIN]')), ('%s joined %s.' % (who, chn)) )
                     objChan.addName( who )
                     self.UpdateNames( objChan )
 
-        elif ((data['c'] == 'PART') or (data['c'] == 'QUIT')):    #
+        elif (data['c'] == 'PART'):
             #what is our nickname
             me = self.IRCSocket.getNick()
 
@@ -495,7 +543,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
                     objChan.ShowMessageAsHTML( '\n*** You parted the channel ***\n' )
 
             else:
-                objChan.ShowMessageInTable( ('<font color=red>%s</font>' % self.padThis('[-]')), ('%s left %s.' % (who, chn)) )
+                objChan.ShowMessageInTable( ('<font color=blue>%s</font>' % self.padThis('[PART]')), ('%s left %s.' % (who, chn)) )
                 objChan.removeName( who )
                 self.UpdateNames( objChan )
 
@@ -510,16 +558,8 @@ class frmMainWindow ( QMainWindow, objDestination ):
 
 
     def UpdateMainDisplay( self ):
-        #buffer ID we'll use to display text
-        #dID = self.ui.listDestination.currentItem().text()
-        #if(dID is not None):
-            #objWithBuffer = self.GetDestinationObject(dID)
-            #self.ui.txtOutput.setHtml( objWithBuffer.getMessageBuffer() )
-            #sb = self.ui.txtOutput.verticalScrollBar()
-            #sb.setValue( sb.maximum() )
-
         try:
-            self.ui.txtOutput.setHtml( self.GetWorkingDestinationObject().getMessageBuffer() )
+            self.ui.txtOutput.setHtml( self.getWorkingDestinationObject().getMessageBuffer() )
             sb = self.ui.txtOutput.verticalScrollBar()
             sb.setValue( sb.maximum() )
         except Exception:
@@ -576,24 +616,35 @@ class frmMainWindow ( QMainWindow, objDestination ):
 
     def processCommand( self, cline ):
 
-        objDest = self.GetWorkingDestinationObject()
+        objChan = None
+        objDest = self.getWorkingDestinationObject()
+        dID = objDest.getDestinationID()
+
+        if(dID[0] == '#'):
+            objChan = self.getChannelObject( dID )
 
         #if the command was empty, skip it
         if((cline == '') or (objDest is None)):
             return
 
         cmd = cline.split(' ')
-        cmd[0] = cmd[0].lower()
+        cmd[0] = cmd[0].upper()
 
-        if(cmd[0] == 'msg'):
+        if(cmd[0] == 'MSG'):
             who = cmd[1]
             what = joinIter(cmd[2:], ' ')
             self.send('PRIVMSG %s :%s' % (who, what))
             objDest.ShowMessageInTable(self.padThis('<-- MSG(%s)' % (who)), what)
-        elif(cmd[0] == 'id'):
+        elif(cmd[0] == 'ID'):
             what = joinIter(cmd[1:], ' ')
             self.send('PRIVMSG NickServ :IDENTIFY %s' % (what))
             objDest.ShowMessageInTable(self.padThis('[IDENTIFY]'), '******')
+        elif(cmd[0] == 'STATCHAN'):
+            if(objChan):
+                objDest.ShowMessageInTable(self.padThis('[STATS]'), ('%s has %s users.' % (dID, str(len(objChan.getNames())))))
+            else:
+                objDest.ShowMessageInTable(self.padThis('[ERROR]'), 'Use the STATCHAN command from a #Channel')
+
         else:
             self.send(joinIter(cmd[0:], ' '))
             objDest.ShowMessageInTable(self.padThis('[COMMAND SENT]'), joinIter(cmd[0:], ' ').upper())
@@ -612,7 +663,7 @@ class frmMainWindow ( QMainWindow, objDestination ):
                     self.processCommand(txt[1:])
                 else:
                     #if our current destination object's id begins with a #, then its a channel, send a privmsg
-                    dID = self.GetWorkingDestinationObject().getDestinationID()
+                    dID = self.getWorkingDestinationObject().getDestinationID()
 
                     if( dID[0] == '#' ):
                         objChan = self.getChannelObject( dID )
